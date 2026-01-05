@@ -1,0 +1,37 @@
+# Production environment configuration
+environment: production
+
+# PostgreSQL settings
+postgresql:
+  persistence:
+    size: 50Gi
+  primary:
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+# OpenFaaS settings
+openfaas:
+  gateway:
+    replicas: 2
+  queueWorker:
+    replicas: 2
+
+# Cloudflared settings
+cloudflared:
+  replicaCount: 3
+
+# mem0 settings
+mem0:
+  replicaCount: 2
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"

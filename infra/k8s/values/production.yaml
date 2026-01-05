@@ -1,0 +1,110 @@
+# Production Environment (Oracle Cloud Free Tier)
+# 
+# Optimized for production deployment on ARM VM:
+# - 4 OCPU (ARM-based)
+# - 24GB RAM
+# - Full resource allocation for stable, scalable operations
+# 
+# Deploy with: helmfile -e production sync
+
+# ============================================================================
+# PostgreSQL - Production Overrides
+# ============================================================================
+# Production-grade resources with full persistence and monitoring
+
+postgresql:
+  auth:
+    # Production password must be provided via environment variable
+    password: "{{ requiredEnv \"POSTGRES_PASSWORD\" }}"
+
+  primary:
+    # Full resource allocation for production workload
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+    # Large persistent volume for production data
+    persistence:
+      size: "20Gi"
+      storageClass: "local-path"
+
+  # Enable metrics for monitoring and observability
+  metrics:
+    enabled: true
+    # TODO: Configure ServiceMonitor for Prometheus integration
+    # serviceMonitor:
+    #   enabled: true
+    #   interval: 30s
+
+# ============================================================================
+# MinIO - Production Overrides
+# ============================================================================
+# Production-grade resources with substantial persistence
+
+minio:
+  auth:
+    # Production password must be provided via environment variable
+    rootPassword: "{{ requiredEnv \"MINIO_ROOT_PASSWORD\" }}"
+
+  # Production-grade resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  # Large persistent volume for production object storage
+  persistence:
+    size: "50Gi"
+    storageClass: "local-path"
+
+  # Standalone mode (clustering requires distributed storage)
+  mode: standalone
+
+# ============================================================================
+# OpenFaaS - Production Overrides
+# ============================================================================
+# Production-grade resources with redundancy for async processing
+
+openfaas:
+  gateway:
+    # Standard production resources
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+
+    # ClusterIP with Traefik ingress (configured separately)
+    service:
+      type: ClusterIP
+
+    # Single replica (multiple instances handled by Kubernetes if needed)
+    replicas: 1
+
+  queueWorker:
+    # Additional replicas for reliable async job processing
+    replicas: 2
+
+    # Standard production resources
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+
+  # Expose services for integration
+  exposeServices: true
+
+  # Async enabled with NATS
+  async: true

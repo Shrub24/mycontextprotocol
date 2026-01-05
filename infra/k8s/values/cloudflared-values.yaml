@@ -1,0 +1,31 @@
+# Cloudflared Tunnel Configuration
+# Note: You need to create a tunnel first using cloudflared CLI
+# cloudflared tunnel create k3s-cluster
+# cloudflared tunnel route dns k3s-cluster yourdomain.com
+
+replicaCount: 2
+
+cloudflare:
+  # Set via environment variables or helmfile secrets
+  # accountId: "your-account-id"
+  # tunnelName: "k3s-cluster"
+  # secret: "your-tunnel-secret"
+  
+  ingress:
+    - hostname: "openfaas.yourdomain.com"
+      service: http://gateway.openfaas.svc.cluster.local:8080
+    - hostname: "mem0.yourdomain.com"
+      service: http://mem0.mem0.svc.cluster.local:8080
+    - service: http_status:404
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "100m"
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "2000"

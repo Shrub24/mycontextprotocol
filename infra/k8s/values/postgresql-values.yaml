@@ -1,0 +1,30 @@
+# PostgreSQL Configuration
+global:
+  postgresql:
+    auth:
+      postgresPassword: "postgres123"
+
+primary:
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  persistence:
+    storageClass: "local-path"
+    accessModes:
+      - ReadWriteOnce
+
+  initdb:
+    scripts:
+      init.sql: |
+        CREATE DATABASE mem0;
+        GRANT ALL PRIVILEGES ON DATABASE mem0 TO myapp;
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false

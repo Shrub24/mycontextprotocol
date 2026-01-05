@@ -1,0 +1,98 @@
+# Helmfile for mycontextprotocol K3s Deployment
+# 
+# Manages core infrastructure services:
+# - PostgreSQL 16 with pgvector (database)
+# - MinIO (object storage)
+# - OpenFaaS (serverless functions)
+#
+# Environments:
+# - local: k3d development (limited resources)
+# - production: Oracle Cloud (4 OCPU, 24GB RAM)
+#
+# Usage:
+#   helmfile -e local sync       # Deploy to local
+#   helmfile -e production sync  # Deploy to production
+#   helmfile diff                # Preview changes
+#   helmfile destroy             # Remove all releases
+
+repositories:
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+  - name: openfaas
+    url: https://openfaas.github.io/faas-netes/
+
+environments:
+  local:
+    values:
+      - values/local.yaml
+  production:
+    values:
+      - values/production.yaml
+
+helmDefaults:
+  # Wait for deployment completion before returning
+  wait: true
+  # Timeout for each release deployment
+  timeout: 600
+  # Don't recreate pods on release upgrade
+  recreatePods: false
+  # Don't force recreate releases
+  force: false
+
+releases:
+  # ============================================================================
+  # PostgreSQL Database with pgvector Extension
+  # ============================================================================
+  # Provides primary data store with vector similarity search capability
+  # Manages memory features and embeddings for the system
+  - name: postgresql
+    namespace: database
+    chart: bitnami/postgresql
+    version: ~15.0.0
+    createNamespace: true
+    values:
+      - values/common.yaml
+      - values/{{ .Environment.Name }}.yaml
+    missingFileHandler: Warn
+    hooks:
+      # TODO: Add pre-deploy hook to create schema if needed
+      # - events: ["presync"]
+      #   showlogs: true
+      #   command: sh
+      #   args: ["./scripts/init-db.sh"]
+
+  # ============================================================================
+  # MinIO Object Storage
+  # ============================================================================
+  # Provides S3-compatible storage for vault files and exports
+  # Used for storing user documents and model outputs
+  - name: minio
+    namespace: storage
+    chart: bitnami/minio
+    version: ~14.0.0
+    createNamespace: true
+    values:
+      - values/common.yaml
+      - values/{{ .Environment.Name }}.yaml
+    missingFileHandler: Warn
+
+  # ============================================================================
+  # OpenFaaS Serverless Functions Platform
+  # ============================================================================
+  # Provides function-as-a-service for background processing
+  # Async job handling via NATS message queue
+  - name: openfaas
+    namespace: openfaas
+    chart: openfaas/openfaas
+    version: ~14.0.0
+    createNamespace: true
+    values:
+      - values/common.yaml
+      - values/{{ .Environment.Name }}.yaml
+    missingFileHandler: Warn
+    # TODO: Configure OpenFaaS Ingress for production exposure
+    # hooks:
+    #   - events: ["postsync"]
+    #     showlogs: true
+    #     command: sh
+    #     args: ["./scripts/setup-openfaas-ingress.sh"]

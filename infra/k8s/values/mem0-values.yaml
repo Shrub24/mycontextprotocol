@@ -1,0 +1,54 @@
+# mem0 Configuration
+replicaCount: 1
+
+image:
+  repository: mem0ai/mem0
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# External PostgreSQL (managed by helmfile)
+postgresql:
+  enabled: false
+  host: "postgresql.database.svc.cluster.local"
+  port: 5432
+  database: "mem0"
+  # Credentials set via helmfile
+
+# Vector database for embeddings
+qdrant:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: "local-path"
+
+# Redis for caching
+redis:
+  enabled: true
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+      storageClass: "local-path"
+
+env:
+  - name: MEM0_LOG_LEVEL
+    value: "info"
+  - name: MEM0_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: mem0-secrets
+        key: api-key
+        optional: true

@@ -1,0 +1,20 @@
+# Default environment configuration
+environment: default
+
+# PostgreSQL settings
+postgresql:
+  persistence:
+    size: 10Gi
+
+# OpenFaaS settings
+openfaas:
+  gateway:
+    replicas: 1
+
+# Cloudflared settings
+cloudflared:
+  replicaCount: 1
+
+# mem0 settings
+mem0:
+  replicaCount: 1

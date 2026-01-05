@@ -1,0 +1,99 @@
+# Local Development Environment (k3d)
+# 
+# Optimized for laptop/desktop development with reduced resource requirements.
+# Uses NodePort for direct service access and minimal persistence.
+# 
+# Deploy with: helmfile -e local sync
+
+# ============================================================================
+# PostgreSQL - Local Development Overrides
+# ============================================================================
+# Reduced resources suitable for a development machine
+
+postgresql:
+  auth:
+    # Use default password in dev (change in .env for production safety)
+    password: "{{ requiredEnv \"POSTGRES_PASSWORD\" | default \"dev-password-change-me\" }}"
+
+  primary:
+    # Minimal resources for development
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+    # Small persistent volume for development data
+    persistence:
+      size: "2Gi"
+      storageClass: "local-path"
+
+  # Disable metrics in development to reduce overhead
+  metrics:
+    enabled: false
+
+# ============================================================================
+# MinIO - Local Development Overrides
+# ============================================================================
+# Standalone mode with minimal resources and storage
+
+minio:
+  auth:
+    rootPassword: "{{ requiredEnv \"MINIO_ROOT_PASSWORD\" | default \"dev-minio-key\" }}"
+
+  # Minimal resources for development
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+  # Small persistent volume for development
+  persistence:
+    size: "5Gi"
+    storageClass: "local-path"
+
+  # Standalone mode (no clustering)
+  mode: standalone
+
+# ============================================================================
+# OpenFaaS - Local Development Overrides
+# ============================================================================
+# NodePort access for direct testing via localhost
+
+openfaas:
+  gateway:
+    # Minimal resources for development
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
+
+    # NodePort for direct localhost access (e.g., localhost:31112)
+    service:
+      type: NodePort
+      nodePort: 31112
+
+  queueWorker:
+    # Minimal resources for development
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
+
+  # Don't expose services via LoadBalancer in development
+  exposeServices: false
+
+  # Basic auth still enabled for security practice
+  basicAuthPlugin:
+    enabled: true
