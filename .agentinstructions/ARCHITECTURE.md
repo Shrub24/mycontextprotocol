@@ -1503,6 +1503,10 @@ helmfile sync
 - **Voice Input**: Transcribe voice notes → memory inbox
 - **Calendar Integration**: Sync events, meeting notes
 - **External APIs**: Notion, Obsidian, Roam Research sync
+- **OpenWebUI Integration**: Self-hosted web interface for querying memories and managing context
+- **ChatGPT/LLM Client Adapters**: API adapters for ChatGPT, Claude, and other LLM clients to query personal memory
+- **Copilot Proxy**: GitHub Copilot-compatible proxy that injects personal context into code completions
+- **Codex CLI Proxy**: Command-line interface proxy for OpenAI Codex with personal memory augmentation
 
 ---
 

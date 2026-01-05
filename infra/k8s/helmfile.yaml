@@ -21,6 +21,8 @@ repositories:
   - name: openfaas
     url: https://openfaas.github.io/faas-netes/
 
+---
+
 environments:
   local:
     values:
@@ -28,6 +30,8 @@ environments:
   production:
     values:
       - values/production.yaml
+
+---
 
 helmDefaults:
   # Wait for deployment completion before returning

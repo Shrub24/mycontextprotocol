@@ -142,3 +142,15 @@ openfaas:
   # Autoscaling for functions
   autoscaler:
     enabled: true
+
+embedding:
+  provider: openai
+  dimension: 768
+  
+  openai:
+    model: text-embedding-3-small
+    
+  ollama:
+    enabled: false
+    model: nomic-embed-text
+    host: http://ollama.embedding:11434

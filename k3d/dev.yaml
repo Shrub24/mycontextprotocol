@@ -1,0 +1,25 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: mcp-dev
+servers: 1
+agents: 0
+image: rancher/k3s:v1.28.5-k3s1
+ports:
+  - port: 8080:80
+    nodeFilters:
+      - loadbalancer
+  - port: 31112:31112
+    nodeFilters:
+      - server:*
+options:
+  k3d:
+    wait: true
+    timeout: "60s"
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true
+volumes:
+  - volume: /tmp/k3d-mcp-dev:/var/lib/rancher/k3s/storage
+    nodeFilters:
+      - server:*

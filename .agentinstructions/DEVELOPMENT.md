@@ -22,6 +22,96 @@ bd ready
 
 Shows available issues prioritized P0 (critical) → P4 (low).
 
+## Agent Delegation
+
+**Agents should delegate research and exploration tasks to specialized child agents rather than using direct tool calls.**
+
+### Available Agents
+
+| Agent | Model/Capability | Use Case |
+|-------|------------------|----------|
+| **explore** | Fast codebase exploration | Find implementations, patterns, structure. Contextual grep for "where is X?" |
+| **librarian** | Multi-repo + docs | Search external docs, GitHub repos, API references, OSS examples |
+| **oracle** | Deep reasoning (expensive) | Architecture decisions, code review, strategy, complex debugging after 2+ failures |
+| **frontend-ui-ux-engineer** | UI/UX specialist | Visual/styling changes ONLY (colors, layout, animations). Not logic. |
+| **document-writer** | Technical writing | README, API docs, architecture docs, guides |
+| **multimodal-looker** | Visual analysis | PDFs, images, diagrams - extracts info beyond raw text |
+
+### When to Use Child Agents
+
+| Task Type | Agent | Pattern |
+|-----------|-------|---------|
+| **Codebase search** | `explore` | Multiple search angles, unfamiliar modules |
+| **External docs** | `librarian` | Library APIs, best practices, OSS examples |
+| **Architecture** | `oracle` | Multi-system tradeoffs, design decisions |
+| **Code review** | `oracle` | After completing significant implementation |
+| **Hard debugging** | `oracle` | After 2+ failed fix attempts |
+| **Frontend visuals** | `frontend-ui-ux-engineer` | Styling, layout, animations (delegate if ANY visual keywords) |
+| **Documentation** | `document-writer` | Technical writing tasks |
+| **Media analysis** | `multimodal-looker` | Need analyzed/extracted data from PDFs/images |
+
+### Pattern: Parallel Background Tasks
+
+**Default behavior:** Fire multiple agents in parallel, continue working while they run.
+
+```python
+# CORRECT: Parallel exploration
+background_task(agent="explore", prompt="Find all authentication implementations in the codebase")
+background_task(agent="explore", prompt="Locate error handling patterns used in functions/")
+background_task(agent="librarian", prompt="Find best practices for OpenFaaS Python handlers")
+
+# Continue immediate work - system notifies when agents complete
+# Later: background_output(task_id="...") to retrieve results
+```
+
+```python
+# WRONG: Direct tool calls for research
+grep_pattern = "authentication"  # Don't do this for exploratory work
+read_file("/path/to/file")       # Use explore agent instead
+```
+
+### When NOT to Use Child Agents
+
+- **Known file location** - Just use `read` directly
+- **Single grep pattern** - Direct tool faster than agent overhead  
+- **Trivial searches** - "Find the README" doesn't need an agent
+
+### Examples
+
+#### Good: Researching New Feature
+```
+User: "Add rate limiting to the API"
+
+Agent thinking: I need to understand:
+1. How the codebase currently handles middleware
+2. Best practices for rate limiting in OpenFaaS
+3. If there are existing examples
+
+Actions:
+- background_task(agent="explore", prompt="Find middleware patterns and request interceptors")
+- background_task(agent="librarian", prompt="Research rate limiting strategies for OpenFaaS Python functions")
+- Read obvious files like functions/stack.yml while agents run
+```
+
+#### Bad: Over-using Agents
+```
+User: "Add a comment to line 5 of handler.py"
+
+Agent: Let me spawn an explore agent to find handler.py...
+❌ WRONG - just read the file directly
+```
+
+### Collecting Results
+
+```bash
+# System notifies you when background tasks complete
+# Retrieve results when needed:
+background_output(task_id="task_abc123")
+
+# Before final answer, always cancel remaining tasks:
+background_cancel(all=true)
+```
+
 ### 2. Claim Work
 ```bash
 bd update <issue-id> --status in_progress
@@ -155,7 +245,16 @@ No automated test suite yet. Manual verification required:
 
 ## Git Workflow
 
-### Commits
+### Git Index Control
+
+**CRITICAL:** The git staging area (index) is controlled by the user, not agents.
+
+- **NEVER** run `git add` or `git commit` unless explicitly instructed by user
+- User will review changes and stage them manually
+- Implement changes, let user handle git operations
+- Focus on making correct code changes, not managing git state
+
+### Commits (when user instructs)
 - **One logical change per commit**
 - **Imperative mood:** "Add function" not "Added function"
 - **Reference issues:** "Close #123: Add memory query endpoint"
