@@ -2,6 +2,13 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+## Architecture & Development Workflow
+
+For complete project context, see:
+- **[.agentinstructions/ARCHITECTURE.md](.agentinstructions/ARCHITECTURE.md)** - Full system architecture
+- **[.agentinstructions/DEVELOPMENT.md](.agentinstructions/DEVELOPMENT.md)** - Agent development workflow
+- **[CODE_STYLE.md](CODE_STYLE.md)** - Code conventions and standards
+
 ## Quick Reference
 
 ```bash
