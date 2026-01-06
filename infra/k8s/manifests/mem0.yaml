@@ -40,7 +40,7 @@ spec:
     spec:
       containers:
       - name: mem0
-        image: mem0ai/mem0-api-server:latest
+        image: mem0/mem0-api-server:latest
         ports:
         - containerPort: 8000
           name: http

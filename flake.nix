@@ -4,12 +4,14 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    uv2nix.url = "github:pyproject-nix/uv2nix";
+    uv2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, uv2nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs { inherit system; };
         
         beads = pkgs.stdenv.mkDerivation rec {
           pname = "beads";
@@ -31,10 +33,20 @@
       in
       {
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
+          packages = with pkgs; [
             # Core tools
             git
             beads
+            
+            # Python tooling
+            python313
+            uv
+            ruff
+            basedpyright
+            
+            # Pre-commit & tasks
+            lefthook
+            go-task
             
             # Infrastructure
             opentofu
@@ -43,8 +55,9 @@
             helmfile
             k3d
             
-            # OpenFaaS
-            faas-cli
+            # K8s debugging
+            k9s
+            stern
             
             # Container runtime
             docker
@@ -56,30 +69,35 @@
             curl
             openssl
             
-            # Optional: uncomment when needed
+            # Optional (for production)
             # cloudflared
-            # k9s
-            # stern
             # postgresql
             # minio-client
           ];
           
           shellHook = ''
-            echo "🚀 mycontextprotocol dev environment"
-            echo ""
-            echo "Available tools:"
-            echo "  bd:        $(bd --version 2>/dev/null || echo 'bd (beads issue tracker)')"
-            echo "  kubectl:   $(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.gitVersion')"
-            echo "  helm:      $(helm version --short 2>/dev/null | cut -d' ' -f1)"
-            echo "  k3d:       $(k3d version 2>/dev/null | head -1)"
-            echo "  tofu:      $(tofu version -json 2>/dev/null | jq -r '.terraform_version')"
-            echo "  faas-cli:  $(faas-cli version 2>/dev/null | grep 'CLI' | awk '{print $2}')"
-            echo ""
-            echo "Quick start:"
-            echo "  bd ready              # Check available issues"
-            echo "  k3d cluster create    # Start local K3s cluster"
-            echo "  helmfile sync         # Deploy services"
-            echo ""
+            cat <<'EOF'
+🚀 mycontextprotocol dev environment
+
+Quick start:
+  uv sync               Install Python dependencies
+  task --list           Show all available tasks
+  task check            Run quality checks (format + lint + typecheck)
+  bd ready              Check available issues
+  
+Cluster ops:
+  task cluster:create   Create local k3d cluster
+  task deploy           Deploy services with helmfile
+  helmfile sync         Direct helmfile deployment (from infra/k8s/)
+  
+Database:
+  task db:autogenerate -- "msg"   Generate migration from models
+  task db:upgrade                 Apply migrations
+  
+Development:
+  task dev              Run gateway with hot-reload
+  task logs -- <pod>    Stream logs from pods
+EOF
           '';
         };
       }

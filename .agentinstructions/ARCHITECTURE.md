@@ -2,27 +2,403 @@
 
 ## 1. Executive Summary
 
-**mycontextprotocol** is a self-hosted personal memory and context management system designed for individuals who want to maintain complete sovereignty over their data while leveraging AI-powered knowledge extraction and search. The system combines a lightweight Kubernetes deployment with intelligent memory management, providing a unified platform for ingesting, processing, and querying personal information at scale.
+**mycontextprotocol** is a self-hosted personal memory and context management system designed as a "Memory-as-a-Service" backend. The system is architected in two distinct parts:
 
-The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: users own their infrastructure, can deploy anywhere, and benefit from both vector-based semantic search and AI-extracted knowledge graphs. The system is architected for single-user deployment initially but designed to be self-deployable by others.
+1. **MyContextProtocol (Part A)** - The backend product: a standalone, deployable memory API with intelligent processing
+2. **Personal AI Stack (Part B)** - The frontend integration: user-facing tools (OpenWebUI, LiteLLM, etc.) that consume the memory API
+
+The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: users own their infrastructure, can deploy anywhere, and benefit from both vector-based semantic search and AI-extracted knowledge graphs.
 
 **Key Capabilities:**
-- **Unified Memory Ingestion** - Capture information from multiple sources (files, documents, notes, web content)
-- **Intelligent Processing** - Automatic fact extraction, deduplication, and knowledge graph construction via Mem0
-- **Semantic Search** - Vector embeddings with pgvector for context-aware memory retrieval
-- **Self-Hosted & Portable** - Run on any Linux VM (locally tested on Oracle Cloud ARM instances)
-- **Cloud-Agnostic** - No vendor lock-in; use Oracle Cloud, AWS, or on-premises infrastructure
+- **Unified Memory Ingestion** - Capture information from multiple sources with intelligent extraction
+- **Subjective/Objective Split** - Separate user preferences (Mem0) from factual knowledge (LlamaIndex)
+- **State vs Tools Pattern** - Context automatically injected (State), knowledge retrieved on-demand (Tools)
+- **Semantic Search** - Vector embeddings with pgvector for context-aware retrieval
+- **Self-Hosted & Portable** - Run on any Linux VM (Oracle Cloud ARM, local k3d)
+- **Cloud-Agnostic** - No vendor lock-in
 
 ---
 
-## 2. System Architecture
+## 2. The Two-Part Architecture
 
-### 2.1 Architecture Diagram
+### 2.1 Part A: MyContextProtocol (The Backend Product)
+
+**Definition**: A standalone, deployable "Memory-as-a-Service" API.
+
+**Goal**: Reusable product with its own Helm Chart that multiple agents (Laptop, Cloud, Phone) can share.
+
+**Components**:
+- **API Gateway**: FastAPI/Go service exposing `/context/state` (middleware) and `/context/query` (tool) endpoints
+- **Workers**: KEDA-scaled batch processors (Omni-Worker pattern)
+- **State Layer**: CloudNativePG (Postgres) + Dragonfly (Queue + Cache)
+
+**Why Separate?**: Allows multiple frontends (OpenWebUI, CLI, browser extension) to share a single "Brain" without tight coupling to any specific UI framework.
+
+### 2.2 Part B: Personal AI Stack (The Frontend Integration)
+
+**Definition**: The user-facing suite deployed via helmfile.
+
+**Components**:
+- **UI**: OpenWebUI (best-in-class FOSS chat interface)
+- **Router**: LiteLLM Proxy (standardizes API calls, handles model switching & cost tracking)
+- **Coding**: Copilot Proxy (intercepts IDE traffic, injects personal context)
+
+**Integration**: OpenWebUI connects to MyContextProtocol via:
+- **Filter** (runs automatically before each request) - calls `/context/state` to inject user context into System Prompt
+- **Tool** (LLM decides to call) - calls `/context/query` when specific knowledge needed
+
+---
+
+## 3. Core Architectural Decisions
+
+### 3.1 Stack Changes from Previous Design
+
+| Component | Previous | Current | Rationale |
+|-----------|----------|---------|-----------|
+| **FaaS Platform** | OpenFaaS | **KEDA + Containers** | No framework lock-in, scale-to-zero without gateway overhead, standard Deployments/Jobs |
+| **Queue** | NATS (OpenFaaS) | **Dragonfly** | Redis-compatible, lower memory footprint, better ARM64 performance, also serves as cache |
+| **Postgres** | Bitnami Helm Chart | **CloudNativePG Operator** | Declarative backups, automatic failover, better operator patterns |
+| **Mem0** | API Server (ARM64-only) | **Embedded Library** | Avoid ARM64 blocker, direct Python integration, simpler deployment |
+| **Functions** | OpenFaaS templates | **Standard Containers** | Language-agnostic, standard Dockerfiles, no special runtime |
+| **Graph Store** | Considered Neo4j/FalkorDB | **LlamaIndex PropertyGraph on Postgres** | Personal scale (<100k nodes), standard SQL tables, no Java overhead |
+
+### 3.2 Why KEDA + Containers?
+
+**KEDA** (Kubernetes Event-Driven Autoscaling) provides scale-to-zero without a proprietary FaaS framework.
+
+**Benefits**:
+- **Standard Kubernetes primitives**: Deployments, Jobs, CronJobs - no lock-in
+- **Scale on anything**: Queue depth, cron schedule, HTTP requests, database queries
+- **Language-agnostic**: Any container, any language
+- **Lightweight**: No gateway, no custom API, just scaling
+
+**Comparison**:
+
+| Feature | OpenFaaS | Knative | KEDA + Containers |
+|---------|----------|---------|-------------------|
+| Scale to zero | Yes (Pro reliable) | Yes | Yes |
+| Lock-in | High (templates, CLI) | Medium (CRDs) | **Low** (standard k8s) |
+| Local dev | Awkward | Heavy | **Native** (just containers) |
+| Complexity | Medium | High (Istio/Kourier) | **Low** |
+
+### 3.3 Why Dragonfly?
+
+**Dragonfly** is a modern, high-performance Redis replacement.
+
+**Benefits for this use case**:
+- **Redis-compatible API**: KEDA Redis scaler works directly
+- **Lower memory footprint**: ~30% less than Redis
+- **Better ARM64 performance**: Native ARM64 optimization
+- **Single binary**: Simpler deployment than Redis Cluster
+- **Dual role**: Queue for ingestion + Cache for Mem0 user context (Phase 2/3)
+
+### 3.4 Why CloudNativePG?
+
+**CloudNativePG** is a Kubernetes operator for PostgreSQL.
+
+**Benefits**:
+- **Declarative backups**: Schedule, retention, restore all in YAML
+- **Automatic failover**: When scaling to multiple replicas (future)
+- **Better operator patterns**: Custom resources for Postgres management
+- **Backup to S3/MinIO**: Native support for object storage backups
+
+---
+
+## 4. Memory Architecture: The Subjective/Objective Split
+
+### 4.1 The Core Distinction
+
+The system maintains **strict separation** between subjective and objective data to prevent "memory pollution."
+
+| Store | What | Example | Used For |
+|-------|------|---------|----------|
+| **Mem0 (Subjective)** | Opinions, preferences, beliefs, user context | "User thinks KEDA is hard", "User prefers dark mode" | **Personalization**, tone, agent behavior |
+| **LlamaIndex (Objective)** | Facts, definitions, events, entities | "KEDA is an autoscaler", "Meeting with Sarah on Tuesday" | **RAG**, information retrieval, knowledge base |
+
+**Why This Matters**:
+- Agent won't say "KEDA is hard" as a fact (it's user opinion)
+- Agent won't personalize based on objective facts
+- Clean separation prevents hallucination and confusion
+
+**Edge Cases**:
+- "User's birthday is March 15" → **LlamaIndex** (objective fact about user)
+- "User prefers being called 'Alex' not 'Alexander'" → **Mem0** (subjective preference)
+
+### 4.2 The State vs Tools Pattern
+
+This is the **key architectural insight** for building high-quality agents.
+
+#### State (Mem0) - Automatic Middleware
+
+**Access Pattern**: Pre-fetched and injected into System Prompt *before* the LLM sees the request.
+
+**Latency**: ~50-100ms, happens every request automatically.
+
+**Purpose**: Defines *who the user is* and *how to respond*.
+
+**Implementation**:
+```
+User Request → [MIDDLEWARE] → Mem0.search(user_id) → System Prompt Injection → LLM
+```
+
+**Example**:
+```
+System Prompt (injected): "You are a helpful assistant. 
+USER CONTEXT: User is a Python developer. Prefers concise answers. Hates YAML."
+
+User: "Help me debug this KEDA scaler"
+
+Agent: [Already knows user preferences, responds accordingly]
+```
+
+#### Tools (LlamaIndex) - On-Demand Retrieval
+
+**Access Pattern**: Agent *decides* to call this when it needs specific knowledge.
+
+**Latency**: ~200-500ms, only when needed.
+
+**Purpose**: Retrieves *what facts or documents* are relevant.
+
+**Implementation**:
+```
+LLM → [Decides "I need technical details"] → search_knowledge_base() → LlamaIndex query → Response
+```
+
+**Tool Definition** (OpenAI-compatible):
+```json
+{
+  "name": "search_life_os",
+  "description": "Search your Knowledge Base for documents, code, or connections between people/events.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {"type": "string"}
+    }
+  }
+}
+```
+
+**Why This is Correct**:
+- **State is always relevant**: Every response needs user context (tone, preferences)
+- **Knowledge is conditionally relevant**: Not every question needs deep document search
+- **Efficiency**: Don't query entire knowledge base for "Hello" messages
+
+### 4.3 Request Lifecycle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     USER REQUEST                             │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│  MIDDLEWARE (FastAPI, runs automatically)                    │
+│                                                              │
+│  1. Extract user_id, recent message history                  │
+│  2. Call Mem0: mem0.search(user_id=..., query=...)          │
+│  3. Format result as System Prompt injection                 │
+│  4. Return enriched prompt to LiteLLM/OpenWebUI              │
+│                                                              │
+│  Endpoint: POST /context/state                               │
+│  Cost: ~50-100ms, always happens                             │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│  LLM (sees enriched prompt)                                  │
+│                                                              │
+│  System: "User is Python dev. Hates YAML. Prefers concise."  │
+│  User: "Help me debug this KEDA scaler"                      │
+│                                                              │
+│  Agent analyzes: "I need technical documentation..."         │
+│                                                              │
+│  → TOOL CALL: search_knowledge_base("KEDA debugging")        │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│  TOOL (runs conditionally, agent decides)                    │
+│                                                              │
+│  LlamaIndex query → returns docs/graph results               │
+│                                                              │
+│  Endpoint: POST /context/query                               │
+│  Cost: ~200-500ms, only when needed                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 4.4 OpenWebUI Integration
+
+**Filter for State (Mem0)**:
+```python
+# mem0_injector.py (OpenWebUI Filter)
+def filter_request(messages, user_id):
+    # Call MyContextProtocol /context/state
+    response = requests.post(
+        "http://mycontextprotocol/context/state",
+        json={"user_id": user_id, "recent_messages": messages[-5:]}
+    )
+    
+    # Prepend to system prompt
+    context = response.json()["context"]
+    system_msg = {"role": "system", "content": f"USER CONTEXT: {context}"}
+    return [system_msg] + messages
+```
+
+**Tool for Knowledge (LlamaIndex)**:
+```python
+# Registered in OpenWebUI Tools config
+{
+  "name": "search_life_os",
+  "url": "http://mycontextprotocol/context/query",
+  "method": "POST",
+  "description": "Search your Knowledge Base for documents, code, or life connections."
+}
+```
+
+---
+
+## 5. Data Processing Architecture
+
+### 5.1 The Omni-Worker Pattern
+
+**Decision**: Single worker that handles extraction and routing, rather than micro-workers.
+
+**Why**:
+- Simpler deployment (one image, one ScaledJob)
+- Single transaction (atomic writes to both Mem0 and LlamaIndex)
+- Easier debugging (one log stream)
+
+**When to Split**: Only if processing times diverge significantly or independent scaling needed.
+
+### 5.2 Ingest Flow
+
+```
+Client (add-memory API)
+   ↓
+[FastAPI Gateway] → Validates input → Dragonfly Queue
+   ↓
+[KEDA monitors queue length]
+   ↓ (when queue >= 10 messages OR daily cron)
+[Omni-Worker Pod] (Python)
+   ↓
+[LLM Extraction] → Structured JSON (Pydantic validated)
+   ├─ user_fact: "User thinks KEDA is hard"
+   └─ knowledge_snippet: "KEDA is an autoscaler"
+   ↓
+[Parallel Write]
+   ├─ Mem0 library → .add_memory() → Postgres (mem0 tables)
+   └─ LlamaIndex → .insert() → Postgres (document_store, graph tables)
+   ↓
+[Mark processed in Dragonfly] → Acknowledge message
+```
+
+### 5.3 KEDA Scaling Configuration
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: omni-worker
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+        - name: worker
+          image: mycontextprotocol/omni-worker:latest
+  triggers:
+  - type: redis  # Dragonfly is Redis-compatible
+    metadata:
+      address: dragonfly.default.svc.cluster.local:6379
+      listName: ingest-queue
+      listLength: "10"  # Batch threshold
+  - type: cron
+    metadata:
+      timezone: UTC
+      start: 0 2 * * *  # Daily at 2 AM (fallback)
+      desiredReplicas: "1"
+```
+
+### 5.4 Extraction Schema
+
+```python
+from pydantic import BaseModel
+
+class UserFact(BaseModel):
+    """Subjective: User preferences, opinions, beliefs"""
+    content: str
+    confidence: float  # 0.0-1.0
+    category: str      # "preference", "opinion", "habit"
+
+class KnowledgeSnippet(BaseModel):
+    """Objective: Facts, definitions, events"""
+    content: str
+    entities: list[str]       # ["KEDA", "Kubernetes"]
+    source: str              # URL or "conversation"
+    date: str | None
+
+class ExtractionResult(BaseModel):
+    user_facts: list[UserFact]
+    knowledge_snippets: list[KnowledgeSnippet]
+```
+
+**Instructor Usage**:
+```python
+import instructor
+from openai import OpenAI
+
+client = instructor.patch(OpenAI())
+
+result = client.chat.completions.create(
+    model="gpt-4",
+    response_model=ExtractionResult,
+    messages=[
+        {"role": "system", "content": "Extract facts. Separate subjective user opinions from objective knowledge."},
+        {"role": "user", "content": raw_input}
+    ]
+)
+
+# result is validated Pydantic model
+for fact in result.user_facts:
+    mem0.add_memory(fact.content, user_id=user_id)
+
+for snippet in result.knowledge_snippets:
+    llamaindex.insert(snippet.content, metadata=snippet.dict())
+```
+
+### 5.5 Deduplication Strategy
+
+| Store | Strategy | Implementation |
+|-------|----------|----------------|
+| **Dragonfly Queue** | Message ID | Built-in Redis deduplication |
+| **Mem0** | Semantic/Entity resolution | Built-in (Mem0 consolidates "User likes coffee" + "User loves coffee") |
+| **LlamaIndex** | Content hash | Check hash before insert to avoid exact duplicates |
+
+```python
+# LlamaIndex deduplication
+import hashlib
+
+def insert_if_new(content: str, metadata: dict):
+    content_hash = hashlib.sha256(content.encode()).hexdigest()
+    
+    # Check if exists
+    existing = db.execute(
+        "SELECT id FROM document_store WHERE content_hash = ?",
+        (content_hash,)
+    )
+    
+    if not existing:
+        llamaindex.insert(content, metadata={"hash": content_hash, **metadata})
+```
+
+---
+
+## 6. System Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         USER INTERFACES                                  │
-│  (WebUI, CLI, API Clients - Future)                                      │
+│  (OpenWebUI, CLI, Browser Extension, Copilot Proxy)                     │
 └────────────────┬────────────────────────────────────────────────────────┘
                  │
 ┌────────────────▼────────────────────────────────────────────────────────┐
@@ -32,644 +408,191 @@ The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: use
                  │
 ┌────────────────▼────────────────────────────────────────────────────────┐
 │                      K3S CLUSTER (Kubernetes)                            │
-│  Lightweight, single-control-plane, optimized for ARM & small instances  │
+│  Lightweight, single-control-plane, optimized for ARM                    │
 ├─────────────────────┬────────────────────────────────────────────────────┤
-│    CORE SERVICES    │           DATA LAYER                               │
+│  MYCONTEXTPROTOCOL  │           DATA LAYER                               │
+│  (Part A)           │                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────┤
-│ • OpenFaaS Gateway  │  THE VAULT (Cold Storage):                         │
-│ • Mem0 API Server   │  • MinIO S3-compatible                             │
-│ • NATS Queue        │  • Raw files, PDFs, archives                       │
-│ • Traefik Ingress   │                                                    │
-│                     │  THE LIBRARY (Hot Index):                          │
-│ FUNCTIONS:          │  • PostgreSQL + pgvector                           │
-│ • process-inbox     │  • Inbox queue, embeddings                         │
-│ • embed-doc         │  • Document metadata                               │
-│ • add-memory        │                                                    │
-│ • query-memory      │  THE BRAIN (Intelligence):                         │
-│                     │  • Mem0 Knowledge Graph                            │
-│                     │  • Fact extraction cache                           │
-│                     │  • Redis cache layer                               │
-│                     │  • Qdrant vector store (optional)                  │
+│ • FastAPI Gateway   │  POSTGRESQL (CloudNativePG):                       │
+│   - /context/state  │  • Mem0 tables (user facts, entities)             │
+│   - /context/query  │  • document_store (embeddings, metadata)          │
+│                     │  • property_graph (LlamaIndex relationships)       │
+│ • Omni-Worker       │                                                    │
+│   (KEDA ScaledJob)  │  DRAGONFLY:                                        │
+│                     │  • Ingest queue (list: ingest-queue)              │
+│                     │  • Cache layer (Phase 2/3: user context cache)    │
+│                     │                                                    │
+│ • Mem0 (library)    │  MinIO (Phase 2/3):                               │
+│   Embedded in worker│  • vault-files (PDFs, documents)                  │
+│                     │  • vault-exports (backups)                        │
+│ • LlamaIndex        │                                                    │
+│   PropertyGraph     │                                                    │
 └─────────────────────┴────────────────────────────────────────────────────┘
                  │
 ┌────────────────▼────────────────────────────────────────────────────────┐
-│               HOST Infrastructure (VM / Bare Metal)                       │
+│               HOST Infrastructure (VM / k3d)                              │
 │  • Oracle Cloud ARM (4 OCPU, 24GB RAM) - Production                      │
 │  • k3d (Docker) - Local Development                                      │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Component Overview
+---
 
-| Component | Role | Technology | Namespace |
-|-----------|------|-----------|-----------|
-| **PostgreSQL + pgvector** | Relational database + vector search | PostgreSQL 15 | `database` |
-| **MinIO** | S3-compatible object storage | MinIO | `minio` |
-| **Mem0 API Server** | AI memory & knowledge graph | Docker image | `mem0` |
-| **OpenFaaS** | Serverless function platform | OpenFaaS 14.x | `openfaas` |
-| **NATS** | Async message queue | NATS (embedded in OpenFaaS) | `openfaas` |
-| **Cloudflare Tunnel** | Zero-trust ingress tunnel | cloudflared | `cloudflare` |
-| **Traefik** | Kubernetes ingress controller | Traefik | `kube-system` (k3s built-in) |
-| **Redis** | Cache layer (Mem0) | Redis | `mem0` |
-| **Qdrant** | Vector database (optional) | Qdrant | `mem0` |
+## 7. Technology Stack
 
-### 2.3 Data Flow
+### 7.1 Core Services
 
-1. **Ingestion**: User submits data via HTTP POST to `add-memory` function or file upload to MinIO
-2. **Inbox Queue**: Raw data lands in PostgreSQL `inbox` table with status `pending`
-3. **Processing**: `process-inbox` cron function (every 10 minutes):
-   - Fetches pending inbox items
-   - Routes to Mem0 for fact extraction (if text/document)
-   - Or routes to `embed-doc` queue for vector embedding
-4. **Storage**: 
-   - Raw files → MinIO `vault-files` bucket
-   - Processed metadata + embeddings → PostgreSQL `document_store` table
-   - Extracted facts + knowledge graph → Mem0 internal DB
-5. **Retrieval**: `query-memory` function:
-   - Accepts natural language query
-   - Generates embedding via Mem0
-   - Searches pgvector for similar documents
-   - Augments results from Mem0 knowledge graph
-   - Returns ranked results
+| Component | Technology | Namespace | Role |
+|-----------|-----------|-----------|------|
+| **Database** | CloudNativePG (Postgres 16 + pgvector) | `database` | All persistent data (Mem0, vectors, graph) |
+| **Queue + Cache** | Dragonfly | `default` | Ingest queue + future user context cache |
+| **Scaling** | KEDA | `keda-system` | Scale workers based on queue depth / cron |
+| **Gateway** | FastAPI (Python) | `default` | API endpoints for State and Tools |
+| **Worker** | Python container (Mem0 + LlamaIndex) | `default` | Batch processing, extraction, storage |
+| **Ingress** | Cloudflare Tunnel + Traefik | `cloudflare`, `kube-system` | Zero-trust HTTPS access |
+| **Storage** (Phase 2/3) | MinIO | `storage` | S3-compatible object storage for files |
+
+### 7.2 Python Libraries (Worker)
+
+| Library | Purpose | Usage |
+|---------|---------|-------|
+| **Mem0** | Episodic memory, user facts | `mem0.add_memory()`, entity resolution, graph building |
+| **LlamaIndex** | Semantic search, property graph | Document indexing, vector store, graph queries |
+| **instructor** | LLM output validation | Structured extraction with Pydantic |
+| **psycopg2** | Postgres driver | Direct DB access |
+| **redis-py** | Dragonfly client | Queue operations |
+
+### 7.3 Why Python for Workers?
+
+| Language | Verdict | Rationale |
+|----------|---------|-----------|
+| **Python** | ✅ **Correct choice** | Mem0 is Python-native, LlamaIndex is Python-native, instructor/pydantic mature. Workers are IO-bound (network, DB), not CPU-bound. |
+| Go | ❌ | Would require calling Python anyway or reimplementing Mem0/LlamaIndex |
+| Rust | ❌ | Same problem, no ecosystem for this workload |
+
+**Where Go/Rust makes sense**: The FastAPI gateway, if high throughput needed. But Python FastAPI is fine for MVP.
 
 ---
 
-## 3. The Tri-Layer Data Model
+## 8. Database Schema
 
-The architecture separates concerns into three layers, each optimized for its role:
+### 8.1 PostgreSQL Tables
 
-### 3.1 The Vault (Cold Storage)
-
-**Purpose**: Immutable archive of raw source material
-
-**Technology**: MinIO S3-compatible object storage
-
-**What Lives Here**:
-- Original PDF documents
-- Uploaded image files
-- Archived emails
-- Long-form text exports
-- Backup archives
-
-**Access Pattern**: Infrequent, bulk operations; cold storage tier
-
-**Buckets**:
-```
-vault-files/          # Raw uploaded files
-  └── pdf/
-  └── images/
-  └── documents/
-vault-exports/        # System exports and backups
-```
-
-**Why**: Decouples storage from processing. Raw files are immutable and safely archived. Allows rescan/re-process workflows without data loss.
-
-### 3.2 The Library (Hot Index)
-
-**Purpose**: Queryable, indexed data with embeddings for semantic search
-
-**Technology**: PostgreSQL 15 + pgvector extension
-
-**Schema**:
-
+**Mem0 Tables** (managed by Mem0 library):
 ```sql
--- Inbox queue for new content
-CREATE TABLE inbox (
+-- Automatically created by Mem0
+CREATE TABLE mem0_memories (
   id UUID PRIMARY KEY,
+  user_id VARCHAR,
   content TEXT,
-  source VARCHAR(100),        -- "upload", "email", "api", etc.
-  metadata JSONB,             -- source-specific metadata
-  processed BOOLEAN DEFAULT false,
-  created_at TIMESTAMP DEFAULT now()
+  category VARCHAR,  -- "preference", "opinion", "habit"
+  confidence FLOAT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
 );
 
--- Processed documents with embeddings
+CREATE TABLE mem0_entities (
+  id UUID PRIMARY KEY,
+  name VARCHAR,
+  entity_type VARCHAR,  -- "person", "organization", "concept"
+  metadata JSONB
+);
+
+CREATE TABLE mem0_relationships (
+  id UUID PRIMARY KEY,
+  from_entity UUID REFERENCES mem0_entities(id),
+  to_entity UUID REFERENCES mem0_entities(id),
+  relationship_type VARCHAR,  -- "knows", "works_at", "related_to"
+  metadata JSONB
+);
+```
+
+**LlamaIndex Tables** (managed by PropertyGraphStore):
+```sql
+-- Document store with embeddings
 CREATE TABLE document_store (
-  id UUID PRIMARY KEY,
-  content TEXT,
-  embedding vector(1536),     -- OpenAI embeddings
-  metadata JSONB,             -- title, source, date, etc.
-  vault_reference VARCHAR,    -- S3 path in MinIO
-  processed_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT now()
-);
-
--- Vector search on embeddings
-CREATE INDEX ON document_store USING ivfflat (embedding vector_cosine_ops);
-
--- Mem0-managed tables (auto-created by Mem0)
--- mem0_memories       - fact extraction results
--- mem0_entities       - knowledge graph nodes
--- mem0_relationships  - knowledge graph edges
-```
-
-**Access Pattern**: Hot, frequent queries; millisecond latency required
-
-**Why**: Separates queryable metadata (fast) from raw content (large). Vector index enables semantic search. JSONB metadata allows flexible schema for different content types.
-
-### 3.3 The Brain (Intelligence)
-
-**Purpose**: Extracted facts, relationships, and knowledge graph for AI-powered retrieval
-
-**Technology**: Mem0 (manages own DB + Redis cache + optional Qdrant)
-
-**What Lives Here**:
-- Extracted facts ("John works at Acme Corp")
-- Entity relationships ("John" → "WORKS_AT" → "Acme Corp")
-- Knowledge graph (hypergraph of entities and relationships)
-- Deduplication cache (avoids re-extracting same facts)
-- Fact embeddings (semantic search over facts)
-
-**Access Pattern**: High-frequency semantic queries; LLM-augmented
-
-**Why**: Mem0 specializes in memory management for LLMs. Handles:
-- Fact extraction with context preservation
-- Automatic deduplication (same fact in different forms)
-- Relationship discovery (who knows whom, what relates to what)
-- Contextual retrieval (find facts relevant to a query)
-
-### 3.4 Data Flow Through Layers
-
-```
-User Input
-  ↓
-[Inbox] → store raw + metadata
-  ↓
-process-inbox (cron /10min)
-  ├─ Extract facts → [Brain] via Mem0 API
-  ├─ Generate embeddings → [Library] pgvector
-  └─ Archive raw → [Vault] MinIO
-  ↓
-Query Request
-  ↓
-query-memory Function
-  ├─ Search [Library] pgvector → documents
-  ├─ Query [Brain] → facts + context
-  └─ Merge + rank → results
-```
-
-### 3.5 Data Location Summary
-
-| Data Type | Layer | Storage | Latency | Query Pattern |
-|-----------|-------|---------|---------|---------------|
-| Raw files | Vault | MinIO S3 | Seconds | By path/ID |
-| Metadata + embeddings | Library | PostgreSQL | Milliseconds | Vector similarity, full-text |
-| Facts + relationships | Brain | Mem0 + Redis | Milliseconds | Semantic, LLM-augmented |
-| Cache | Brain | Redis | Microseconds | Hot-set facts |
-
----
-
-## 4. Infrastructure
-
-### 4.1 Production Environment
-
-**Host**: Oracle Cloud Free Tier VM
-
-**Instance Type**: `VM.Standard.A1.Flex` (ARM-based)
-- **vCPU**: 4 ARM OCPU (Ampere A1 cores)
-- **Memory**: 24 GB RAM
-- **Storage**: 200 GB boot volume (system) + 100 GB block storage (data)
-- **Network**: Public IP + VCN with security groups
-- **Cost**: Free tier eligible (not charged if within limits)
-
-**Why ARM?**
-- Oracle Cloud Free Tier offers ARM instances exclusively
-- 4x cheaper than comparable x86 instances
-- Modern software (especially containers) has excellent ARM support
-- K3s runs extremely well on ARM
-
-**K3s Installation** (via cloud-init):
-```bash
-#!/bin/bash
-curl -sfL https://get.k3s.io | sh -
-# Sets KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-# Starts immediately with systemd
-```
-
-**Production Storage**:
-- PostgreSQL: 50 GB persistent volume (production.yaml)
-- MinIO: 100 GB (block storage mounted)
-- System: 20 GB overhead
-
-**Networking**:
-- Cloudflare Tunnel handles all ingress
-- No public ports exposed directly
-- Tunnel bridges K3s Traefik to Cloudflare network
-- DNS configured at Cloudflare dashboard
-
-### 4.2 Local Development
-
-**Host**: Developer's laptop/workstation
-
-**Setup**: k3d (K3s in Docker)
-
-```bash
-# Create k3d cluster matching production
-k3d cluster create mycontextprotocol \
-  --agents 1 \
-  --image rancher/k3s:latest \
-  --port 8080:80@loadbalancer \
-  --port 8443:443@loadbalancer
-```
-
-**Resource Allocation** (Docker Desktop defaults):
-- Memory: ~16 GB allocated to Docker
-- CPU: ~8 cores
-- Storage: 100 GB disk image
-
-**Key Differences from Production**:
-| Aspect | Local (k3d) | Production (Oracle) |
-|--------|------------|-------------------|
-| Access | `localhost:8080` | Cloudflare tunnel |
-| Ingress | NodePort | Cloudflare Tunnel |
-| Storage | Ephemeral (can mount local) | Persistent volumes |
-| Networking | Docker bridge | VCN security groups |
-| Secrets | env vars | Kubernetes Secrets |
-
-**Local Workflow**:
-```bash
-cd infra/k8s
-
-# Start cluster
-k3d cluster create mycontextprotocol
-
-# Deploy services
-helmfile sync
-
-# Access services
-kubectl port-forward -n database svc/postgresql 5432:5432
-kubectl port-forward -n openfaas svc/gateway 8080:8080
-kubectl port-forward -n mem0 svc/mem0 8080:8080
-
-# Check logs
-kubectl logs -n openfaas deploy/gateway
-kubectl logs -n mem0 deploy/mem0
-
-# Clean up
-k3d cluster delete mycontextprotocol
-```
-
-### 4.3 Why K3s?
-
-**Decision**: Use K3s (lightweight Kubernetes) instead of faasd or Docker Compose
-
-**Comparison Table**:
-
-| Criterion | K3s | faasd | Docker Compose |
-|-----------|-----|-------|-----------------|
-| **RAM Overhead** | ~1.5 GB | ~200 MB | ~100 MB |
-| **Helm Ecosystem** | ✅ Full | ❌ No | ❌ No |
-| **Portability** | ✅ Standard K8s | ❌ Custom | ❌ Host-dependent |
-| **Multi-Node** | ✅ Easy | ⚠️ Manual | ❌ No |
-| **Production-Ready** | ✅ Yes | ⚠️ For FaaS only | ⚠️ Limited |
-| **Stateful Services** | ✅ Excellent | ⚠️ Basic | ✅ Good |
-| **Observability** | ✅ Rich | ⚠️ Limited | ⚠️ Basic |
-| **Secrets Management** | ✅ Native | ❌ No | ⚠️ Manual |
-
-**Why K3s over Alternatives?**
-
-1. **Helm Ecosystem**: Can use battle-tested charts from Bitnami, OpenFaaS, and Mem0. Avoids reimplementing deployments.
-
-2. **Unification**: Single orchestration for all components (databases, functions, services). No need to manage Docker Compose + separate function runtime.
-
-3. **Portability**: Same manifests work on 24GB Oracle VM, 4GB Raspberry Pi, or 256GB datacenter cluster. Zero drift.
-
-4. **Future-Proof**: Kubernetes is the industry standard. Skills and tools transfer to other projects. GitOps paths (ArgoCD) available.
-
-5. **Stateful Services**: PostgreSQL + MinIO require persistent storage, replication, and recovery. K3s handles this natively.
-
-6. **Worth the 1.5GB**: For a personal memory system where RAM headroom is important, 1.5GB is justified by:
-   - No custom integration code needed
-   - No operational surprises (uses standard tooling)
-   - Can scale to multi-node later
-   - Saves 10+ hours of custom orchestration work
-
-**RAM Budget** (24 GB total):
-```
-K3s control plane          ~1.5 GB
-PostgreSQL                 ~1.0 GB (base, grows with data)
-Mem0 server                ~2.0 GB (AI model in memory)
-OpenFaaS gateway/worker    ~0.3 GB
-NATS messaging             ~0.15 GB
-MinIO                      ~0.5 GB (metadata, configurable)
-Functions (running)        ~1.0 GB (headroom for concurrent)
-Qdrant (optional)          ~1.0 GB (if enabled)
-OS/system                  ~2.0 GB
-────────────────────────────────────
-Available headroom         ~14 GB
-```
-
----
-
-## 5. Core Services
-
-### 5.1 PostgreSQL + pgvector
-
-**Role**: Primary relational database + vector search backend
-
-**Deployment**: Helm chart `bitnami/postgresql` v15.0.0
-
-**Kubernetes Namespace**: `database`
-
-**Key Configuration**:
-```yaml
-# Helm values (helmfile.yaml)
-auth:
-  database: myapp
-  username: myapp
-  password: changeme123        # Override in production!
-
-primary:
-  persistence:
-    enabled: true
-    size: 10Gi (dev) / 50Gi (prod)
-    storageClass: local-path   # k3s default
-
-initdb:
-  scripts:
-    init.sql:
-      CREATE DATABASE mem0;    # For Mem0 usage
-      GRANT ALL PRIVILEGES ON DATABASE mem0 TO myapp;
-```
-
-**Database Schema**:
-
-```sql
--- Inbox queue for new content
-CREATE TABLE inbox (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   content TEXT NOT NULL,
-  source VARCHAR(100),         -- "api", "upload", "email", etc.
-  metadata JSONB DEFAULT '{}', -- source-specific data
-  processed BOOLEAN DEFAULT false,
-  created_at TIMESTAMP DEFAULT now(),
-  processed_at TIMESTAMP NULL
-);
-
--- Processed document store with embeddings
-CREATE TABLE document_store (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  content TEXT,
-  embedding vector(1536),      -- OpenAI or similar embeddings
-  metadata JSONB DEFAULT '{}', -- {title, author, date, source}
-  vault_reference VARCHAR,     -- S3 path (s3://vault-files/pdf/...)
-  processed_at TIMESTAMP,
+  embedding vector(768),  -- Dimension based on embedding model
+  metadata JSONB DEFAULT '{}',
+  content_hash VARCHAR(64) UNIQUE,  -- For deduplication
+  vault_reference VARCHAR,  -- S3 path (future)
   created_at TIMESTAMP DEFAULT now()
 );
 
 -- Vector index for semantic search
 CREATE INDEX idx_embedding_cosine 
-  ON document_store USING ivfflat (embedding vector_cosine_ops);
+  ON document_store USING hnsw (embedding vector_cosine_ops);
 
--- Create pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Content hash index for deduplication
+CREATE INDEX idx_content_hash ON document_store(content_hash);
+
+-- Graph nodes (LlamaIndex PropertyGraph)
+CREATE TABLE graph_nodes (
+  id UUID PRIMARY KEY,
+  label VARCHAR,  -- "Person", "Event", "Project"
+  properties JSONB
+);
+
+-- Graph edges (relationships)
+CREATE TABLE graph_edges (
+  id UUID PRIMARY KEY,
+  from_node UUID REFERENCES graph_nodes(id),
+  to_node UUID REFERENCES graph_nodes(id),
+  edge_type VARCHAR,  -- "attended", "works_on", "knows"
+  properties JSONB
+);
+
+-- Indexes for graph traversal
+CREATE INDEX idx_edges_from ON graph_edges(from_node);
+CREATE INDEX idx_edges_to ON graph_edges(to_node);
 ```
 
-**Connection Details**:
-- **Host**: `postgresql.database.svc.cluster.local` (internal K8s DNS)
-- **Port**: 5432
-- **User**: `myapp`
-- **Password**: Stored in K8s Secret `postgresql-secret`
-- **Databases**: `myapp` (app data), `mem0` (Mem0 data)
+**Application Tables**:
+```sql
+-- Inbox queue (temporary, before processing)
+CREATE TABLE inbox (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content TEXT NOT NULL,
+  source VARCHAR(100),  -- "api", "upload", "email"
+  target VARCHAR(100),  -- "mem0", "llamaindex", "both"
+  metadata JSONB DEFAULT '{}',
+  processed BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT now(),
+  processed_at TIMESTAMP
+);
 
-**Persistence**:
-- Uses K3s `local-path` storage class
-- Data stored at `/var/lib/rancher/k3s/storage/` on host
-- Backed up separately (future: implement backup strategy)
-
-**Access from Cluster**:
-```bash
-# Port-forward for local access
-kubectl port-forward -n database svc/postgresql 5432:5432
-
-# Connect via psql
-psql -h localhost -U myapp -d myapp -p 5432
+CREATE INDEX idx_inbox_pending ON inbox(processed, created_at) 
+  WHERE processed = false;
 ```
 
-### 5.2 MinIO (S3-Compatible Object Storage)
+### 8.2 Dragonfly Data Structures
 
-**Role**: Immutable archive for raw files (The Vault)
-
-**Status**: Planned (not yet deployed in helmfile)
-
-**Proposed Configuration**:
-```yaml
-# To be added to helmfile.yaml
-- name: minio
-  namespace: minio
-  chart: bitnami/minio
-  version: ~12.0.0
-  values:
-    - values/minio-values.yaml
-  set:
-    - name: auth.rootUser
-      value: minioadmin
-    - name: auth.rootPassword
-      value: ${MINIO_ROOT_PASSWORD}  # Set via env
-    - name: persistence.size
-      value: 100Gi
 ```
+# Ingest queue (Redis LIST)
+LPUSH ingest-queue '{"inbox_id": "uuid", "content": "...", "source": "api"}'
 
-**Buckets**:
+# Worker processing
+BRPOP ingest-queue 30  # Blocking pop with 30s timeout
+
+# Phase 2/3: User context cache (Redis HASH)
+# Key: "user:context:{user_id}"
+# TTL: 300 seconds (5 minutes)
+HSET user:context:alice "preferences" "Python dev, hates YAML, concise"
+EXPIRE user:context:alice 300
 ```
-vault-files/          # Raw uploaded files
-  ├── pdf/
-  ├── documents/
-  ├── images/
-  └── email/
-vault-exports/        # Backups and exports
-```
-
-**Features**:
-- S3-compatible API (drop-in replacement)
-- Built-in versioning and WORM (Write-Once-Read-Many)
-- Multipart upload support for large files
-- Replication support (future: cross-node)
-
-**Usage from Functions**:
-```python
-# In embed-doc or process-inbox function
-from minio import Minio
-
-client = Minio(
-    "minio.minio.svc.cluster.local:9000",
-    access_key="minioadmin",
-    secret_key=os.getenv("MINIO_PASSWORD")
-)
-
-# Upload file
-client.fput_object("vault-files", "pdf/document.pdf", "/tmp/file")
-
-# Retrieve file
-client.fget_object("vault-files", "pdf/document.pdf", "/tmp/output")
-```
-
-### 5.3 Mem0 API Server
-
-**Role**: AI-powered memory management, fact extraction, knowledge graph
-
-**Deployment**: Docker image `mem0ai/mem0` deployed via Helm
-
-**Kubernetes Namespace**: `mem0`
-
-**Key Configuration**:
-```yaml
-replicaCount: 1 (dev) / 2 (prod)
-
-image:
-  repository: mem0ai/mem0
-  tag: latest
-
-service:
-  type: ClusterIP
-  port: 8080
-
-resources:
-  requests:
-    memory: 256Mi (dev) / 512Mi (prod)
-    cpu: 100m (dev) / 250m (prod)
-  limits:
-    memory: 512Mi (dev) / 1Gi (prod)
-
-# Depends on PostgreSQL
-postgresql:
-  enabled: false
-  host: postgresql.database.svc.cluster.local
-  port: 5432
-  database: mem0
-  username: myapp
-
-# Optional: Qdrant vector store
-qdrant:
-  enabled: true
-  persistence:
-    size: 5Gi
-
-# Cache layer
-redis:
-  enabled: true
-  master:
-    persistence:
-      size: 1Gi
-```
-
-**API Endpoints**:
-```
-POST /api/v1/memories    - Add memory
-GET  /api/v1/memories    - Retrieve memories
-POST /api/v1/history     - Get conversation history
-POST /api/v1/search      - Search knowledge graph
-```
-
-**Integration Points**:
-
-1. **process-inbox function** calls Mem0 to extract facts:
-```python
-import requests
-
-MEM0_HOST = "mem0.mem0.svc.cluster.local:8080"
-
-def extract_facts(text, conversation_id):
-    response = requests.post(
-        f"http://{MEM0_HOST}/api/v1/memories",
-        json={
-            "conversation_id": conversation_id,
-            "messages": [{"role": "user", "content": text}]
-        }
-    )
-    return response.json()
-```
-
-2. **query-memory function** retrieves facts:
-```python
-def search_facts(query):
-    response = requests.post(
-        f"http://{MEM0_HOST}/api/v1/search",
-        json={"query": query}
-    )
-    return response.json()["results"]
-```
-
-**Data Managed by Mem0**:
-- Facts extracted from conversations
-- Entity relationships (knowledge graph)
-- Deduplication cache
-- User conversation history
-
-**Why Mem0?**
-- Specialized for LLM memory management
-- Automatic deduplication (prevents duplicate facts)
-- Relationship discovery (finds connections between entities)
-- Contextual retrieval (returns facts relevant to query)
-- Production-ready (used by major LLM products)
-
-### 5.4 OpenFaaS (Serverless Functions Platform)
-
-**Role**: Execution runtime for custom business logic functions
-
-**Deployment**: Helm chart `openfaas/openfaas` v14.0.0
-
-**Kubernetes Namespace**: `openfaas`, `openfaas-fn` (function namespace)
-
-**Key Configuration**:
-```yaml
-gateway:
-  replicas: 1 (dev) / 2 (prod)
-  service:
-    type: NodePort (local) / ClusterIP (prod with tunnel)
-    nodePort: 31112
-
-queueWorker:
-  replicas: 1 (dev) / 2 (prod)
-
-# Async functions via NATS
-nats:
-  enabled: true
-  # NATS is embedded, no external dependency
-
-# Autoscaling based on function demand
-autoscaler:
-  enabled: true
-```
-
-**Function Namespaces**:
-- `openfaas-fn`: User-defined functions
-- `openfaas`: Core gateway + worker components
-
-**Function Invocation**:
-
-```bash
-# Synchronous (HTTP)
-curl -X POST http://localhost:8080/function/query-memory \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What do I know about AI?"}'
-
-# Asynchronous (via NATS queue)
-curl -X POST http://localhost:8080/async-function/embed-doc \
-  -H "Content-Type: application/json" \
-  -d '{"file_id": "doc-123"}'
-```
-
-**Built-in Features**:
-- Function versioning
-- Zero-scaling (scale to zero when idle)
-- Metrics collection (Prometheus-ready)
-- Request/response logging
-- Health checks and recovery
 
 ---
 
-## 6. Functions Specification
+## 9. API Specification
 
-Functions are the business logic layer. All are Python-based, deployed to OpenFaaS.
+### 9.1 Ingest API
 
-### 6.1 add-memory (HTTP POST)
+**POST /ingest**
 
-**Purpose**: Ingest new content into system
+Add new content to the system.
 
-**Trigger**: HTTP POST from user/API
-
-**Input**:
+**Request**:
 ```json
 {
   "content": "string (max 1MB)",
@@ -683,162 +606,71 @@ Functions are the business logic layer. All are Python-based, deployed to OpenFa
 }
 ```
 
-**Output**:
+**Response** (202 Accepted):
 ```json
 {
   "id": "uuid",
   "status": "queued",
-  "message": "Memory added to inbox"
+  "message": "Content added to processing queue"
 }
 ```
 
-**Logic**:
-```
-1. Validate input (content non-empty, source recognized)
-2. Generate UUID for record
-3. Store in inbox table (status: pending)
-4. Return ID for tracking
-5. Function returns immediately (user gets quick feedback)
-```
+### 9.2 State API (Middleware)
 
-**Dependencies**:
-- PostgreSQL connection
-- Pydantic for validation
+**POST /context/state**
 
-**Code Location**: `functions/add-memory/`
+Retrieve user context for System Prompt injection. Called by OpenWebUI Filter automatically.
 
-### 6.2 process-inbox (Cron, every 10 minutes)
-
-**Purpose**: Process pending inbox items, route to extraction/embedding
-
-**Trigger**: Cron schedule `*/10 * * * *`
-
-**Execution**:
-- Runs every 10 minutes
-- Processes batch of up to 100 pending items
-- No input parameters (reads from inbox table)
-
-**Logic**:
-```
-1. FETCH from inbox WHERE processed = false LIMIT 100
-2. FOR EACH item:
-   a. IF source in [email, notes, text]:
-      - Call Mem0 /api/v1/memories (fact extraction)
-      - Store facts in knowledge graph
-      - Mark processed
-   b. ELSE IF source in [pdf, document, upload]:
-      - Read from MinIO (if file reference)
-      - Call embed-doc function (async, via NATS queue)
-      - Mark queued
-3. UPDATE inbox SET processed = true WHERE processed_at IS NOT NULL
-```
-
-**Dependencies**:
-- PostgreSQL (read inbox)
-- Mem0 (for fact extraction)
-- OpenFaaS NATS (queue embed-doc)
-- MinIO (retrieve file content)
-
-**Idempotency**: Yes (marked with processed_at timestamp)
-
-**Code Location**: `functions/process-inbox/`
-
-**Environment Variables**:
-```bash
-MEM0_API_HOST=mem0.mem0.svc.cluster.local:8080
-PG_HOST=postgresql.database.svc.cluster.local
-PG_USER=myapp
-PG_PASS=${PG_PASSWORD}  # From Secret
-NATS_URL=nats://nats.openfaas.svc.cluster.local:4222
-```
-
-### 6.3 embed-doc (Async via NATS queue)
-
-**Purpose**: Generate vector embeddings for documents
-
-**Trigger**: Async (NATS message from process-inbox)
-
-**Input** (NATS message):
+**Request**:
 ```json
 {
-  "inbox_id": "uuid",
-  "content": "document text",
-  "metadata": {"title": "...", "source": "..."}
+  "user_id": "string",
+  "recent_messages": [
+    {"role": "user", "content": "..."},
+    {"role": "assistant", "content": "..."}
+  ]
 }
 ```
 
-**Output**: None (updates database)
-
-**Logic**:
-```
-1. RECEIVE message from NATS queue
-2. Split content into chunks (512 tokens, 50% overlap)
-3. FOR EACH chunk:
-   a. Call embedding service (OpenAI or local)
-      - API: POST /v1/embeddings with model=text-embedding-3-small
-   b. Insert into document_store:
-      - id, content, embedding, metadata, vault_reference
-   c. Store vault reference if file in MinIO
-4. UPDATE inbox SET processed = true
-5. Log completion
-```
-
-**Error Handling**:
-- Retry on API failure (3 attempts with exponential backoff)
-- Store failed IDs in `dead_letter_queue` table
-- Alerting (future: send to monitoring system)
-
-**Dependencies**:
-- OpenAI API (or local embedding service)
-- PostgreSQL
-- MinIO (optional, for large files)
-
-**Resource Requirements**:
-- Memory: 256 MB per concurrent invocation
-- CPU: 100 mCPU per invocation
-- Network: ~200ms per embedding request
-
-**Code Location**: `functions/embed-doc/`
-
-**Environment Variables**:
-```bash
-OPENAI_API_KEY=${OPENAI_API_KEY}
-EMBEDDING_MODEL=text-embedding-3-small
-PG_HOST=postgresql.database.svc.cluster.local
-```
-
-### 6.4 query-memory (HTTP GET/POST)
-
-**Purpose**: Search memories across all layers
-
-**Trigger**: HTTP GET/POST from user
-
-**Input**:
+**Response**:
 ```json
 {
-  "query": "What do I know about AI?",
+  "context": "User is a Python developer. Prefers concise answers. Hates YAML. Working on KEDA project.",
+  "cache_hit": false,
+  "latency_ms": 87
+}
+```
+
+### 9.3 Query API (Tool)
+
+**POST /context/query**
+
+Search knowledge base. Called by LLM when it decides it needs information.
+
+**Request**:
+```json
+{
+  "query": "What is KEDA and how does it work?",
   "limit": 10,
-  "include_metadata": true,
-  "search_mode": "hybrid"  # semantic, facts, or hybrid
+  "search_mode": "hybrid"  // "semantic", "graph", "hybrid"
 }
 ```
 
-**Output**:
+**Response**:
 ```json
 {
   "results": [
     {
       "type": "document",
       "id": "uuid",
-      "content": "...",
+      "content": "KEDA is a Kubernetes event-driven autoscaler...",
       "relevance": 0.89,
-      "source": "upload"
+      "source": "documentation"
     },
     {
-      "type": "fact",
+      "type": "graph_connection",
       "id": "uuid",
-      "content": "AI can process large amounts of data",
-      "context": ["Machine Learning", "Data Processing"],
+      "content": "KEDA → scales → Deployments, uses → ScaledObject CRD",
       "relevance": 0.85
     }
   ],
@@ -846,932 +678,506 @@ PG_HOST=postgresql.database.svc.cluster.local
 }
 ```
 
-**Logic**:
-```
-1. PARSE query, validate limit (max 100)
-2. GENERATE embedding of query (same model as document embeddings)
-3. IF search_mode in [semantic, hybrid]:
-   a. SEARCH pgvector for similar documents
-      - SELECT * FROM document_store
-      - WHERE 1 - (embedding <=> query_embedding) > threshold
-      - ORDER BY similarity DESC
-      - LIMIT limit
-4. IF search_mode in [facts, hybrid]:
-   a. CALL Mem0 /api/v1/search
-      - POST {"query": query_text}
-      - Returns facts ranked by relevance
-5. MERGE results, de-duplicate, rank by relevance score
-6. RETURN results with metadata
-```
-
-**Hybrid Search**: Combines vector similarity (documents) + semantic search (facts)
-- Vector results weighted 0.6
-- Fact results weighted 0.4
-- Re-ranked by combined score
-
-**Dependencies**:
-- PostgreSQL pgvector
-- Mem0 API
-- OpenAI API (for query embedding)
-
-**Latency SLA**: < 500ms for typical query
-
-**Code Location**: `functions/query-memory/`
-
 ---
 
-## 7. Deployment
+## 10. Deployment Architecture
 
-### 7.1 OpenTofu Infrastructure-as-Code
+### 10.1 Infrastructure
 
-**Status**: Planned (structure defined, not yet fully populated)
+**Production**: Oracle Cloud Free Tier
+- **Instance**: VM.Standard.A1.Flex (ARM Ampere)
+- **Specs**: 4 OCPU, 24GB RAM, 200GB boot + 100GB block storage
+- **OS**: Ubuntu 24.04 ARM64
+- **K3s**: Single-node cluster (can scale to multi-node later)
 
-**Directory**: `infra/tofu/`
+**Local Development**: k3d
+- **Cluster**: K3s in Docker
+- **Resource**: ~8GB RAM allocated to Docker Desktop
+- **Parity**: Same manifests, same Helm charts
 
-**Purpose**: Provision VM and network infrastructure (Oracle Cloud)
+### 10.2 Deployment Method
 
-**Components** (planned):
-
-```hcl
-# main.tf
-terraform {
-  required_providers {
-    oci = {
-      source  = "oracle/oci"
-      version = "~> 5.0"
-    }
-  }
-}
-
-# Network
-resource "oci_core_vcn" "main" {
-  cidr_block = "10.0.0.0/16"
-}
-
-resource "oci_core_subnet" "main" {
-  vcn_id = oci_core_vcn.main.id
-  cidr_block = "10.0.1.0/24"
-}
-
-# Security Group
-resource "oci_core_network_security_group" "main" {
-  vcn_id = oci_core_vcn.main.id
-  rules = [
-    { ingress, TCP 22 (SSH) },
-    { ingress, TCP 443 (HTTPS from Cloudflare) },
-    { egress, all }
-  ]
-}
-
-# VM Instance (ARM)
-resource "oci_core_instance" "k3s_server" {
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
-  compartment_id      = var.compartment_id
-  
-  instance_options {
-    are_legacy_imds_endpoints_disabled = false
-  }
-  
-  shape = "VM.Standard.A1.Flex"
-  
-  shape_config {
-    ocpus         = 4
-    memory_in_gbs = 24
-  }
-  
-  source_details {
-    source_type             = "IMAGE"
-    source_id               = data.oci_core_images.ubuntu.images[0].id
-    boot_volume_size_in_gbs = 200
-  }
-  
-  metadata = {
-    user_data = base64encode(file("${path.module}/cloud-init.yaml"))
-  }
-}
-
-# Block storage for data
-resource "oci_core_volume" "data" {
-  availability_domain = oci_core_instance.k3s_server.availability_domain
-  compartment_id      = var.compartment_id
-  size_in_gbs         = 100
-}
-
-resource "oci_core_volume_attachment" "data" {
-  attachment_type = "paravirtualized"
-  instance_id     = oci_core_instance.k3s_server.id
-  volume_id       = oci_core_volume.data.id
-  device          = "/dev/oracleoci/oraclevdb"
-}
-
-# Outputs
-output "instance_public_ip" {
-  value = oci_core_instance.k3s_server.public_ip
-}
-```
-
-**cloud-init.yaml** (user-data script):
+**Helmfile** for orchestration:
 ```yaml
-#!/bin/bash
-# Update system
-apt-get update && apt-get upgrade -y
-
-# Install K3s
-curl -sfL https://get.k3s.io | sh -
-
-# Wait for K3s to be ready
-sleep 10
-export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-
-# Prepare data volume
-mkfs.ext4 /dev/oracleoci/oraclevdb
-mkdir -p /mnt/data
-mount /dev/oracleoci/oraclevdb /mnt/data
-echo "/dev/oracleoci/oraclevdb /mnt/data ext4 defaults 0 2" >> /etc/fstab
-
-# Create local-path storage provisioner config
-mkdir -p /mnt/data/k3s-storage
-kubectl patch storageclass local-path -p '{"provisioner":"rancher.io/local-path"}'
-```
-
-**Deploy**:
-```bash
-cd infra/tofu
-tofu init
-tofu plan -var="compartment_id=ocid1.compartment..."
-tofu apply
-# Outputs: instance_public_ip
-```
-
-### 7.2 Helmfile: Helm Release Management
-
-**File**: `infra/k8s/helmfile.yaml`
-
-**Purpose**: Define and manage all Helm chart deployments
-
-**Helm Repositories**:
-```yaml
+# helmfile.yaml
 repositories:
-  - name: bitnami
-    url: https://charts.bitnami.com/bitnami
-  - name: openfaas
-    url: https://openfaas.github.io/faas-netes/
-  - name: cloudflare
-    url: https://cloudflare.github.io/helm-charts
-  - name: mem0
-    url: https://charts.mem0.ai
+  - name: cnpg
+    url: https://cloudnative-pg.github.io/charts
+  - name: kedacore
+    url: https://kedacore.github.io/charts
+  - name: dragonfly
+    url: https://www.dragonflydb.io/helm-charts
+
+releases:
+  # Database with operator
+  - name: cloudnativepg
+    namespace: cnpg-system
+    chart: cnpg/cloudnative-pg
+
+  - name: postgres-cluster
+    namespace: database
+    chart: cnpg/cluster
+    values:
+      - values/postgres.yaml
+
+  # Queue + Cache
+  - name: dragonfly
+    namespace: default
+    chart: dragonfly/dragonfly
+    values:
+      - values/dragonfly.yaml
+
+  # Autoscaling
+  - name: keda
+    namespace: keda-system
+    chart: kedacore/keda
+
+  # Our application (custom chart)
+  - name: mycontextprotocol
+    namespace: default
+    chart: ./charts/mycontextprotocol
+    values:
+      - values/common.yaml
+      - values/{{ .Environment.Name }}.yaml
 ```
 
-**Releases Defined**:
-1. **postgresql** - Bitnami PostgreSQL chart
-2. **openfaas** - OpenFaaS platform
-3. **cloudflared** - Cloudflare Tunnel ingress
-4. **mem0** - Mem0 AI server
-5. **minio** (planned) - MinIO S3 storage
+### 10.3 Container Images
 
-**Values Hierarchy**:
-```
-helmfile.yaml              (base: repository URLs, versions)
-  ├── values/postgresql-values.yaml
-  ├── values/openfaas-values.yaml
-  ├── values/mem0-values.yaml
-  └── environments/
-      ├── default.yaml      (dev settings: 1 replica, 10Gi storage)
-      └── production.yaml   (prod settings: HA, 50Gi storage, resources)
+**All images must be linux/arm64** for Oracle Cloud deployment.
+
+**Build strategy**:
+```dockerfile
+# Gateway (FastAPI)
+FROM python:3.12-slim-bookworm
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-**Deployment**:
-
+**Multi-arch build**:
 ```bash
-cd infra/k8s
-
-# List releases
-helmfile list
-
-# Dry-run (show what will be deployed)
-helmfile diff
-
-# Deploy to default environment (local dev)
-helmfile sync
-
-# Deploy to production
-helmfile -e production sync
-
-# Deploy specific release
-helmfile -l name=postgresql sync
-
-# Upgrade all
-helmfile apply
-
-# Destroy
-helmfile destroy
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t mycontextprotocol/gateway:latest \
+  --push .
 ```
-
-**Key Features**:
-
-- **Templating**: Supports env vars like `${CLOUDFLARE_ACCOUNT_ID}`
-- **Secrets**: Injected at deploy time (not stored in git)
-- **Selective Sync**: Deploy only changed releases
-- **Diff Preview**: Review changes before applying
-
-### 7.3 Plain YAML Manifests (Future)
-
-**Status**: Not yet implemented; for components with custom behavior
-
-**Purpose**: When Helm charts don't provide enough flexibility
-
-**Example** (not in use yet):
-```yaml
-# mem0-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mem0
-  namespace: mem0
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: mem0
-  template:
-    metadata:
-      labels:
-        app: mem0
-    spec:
-      containers:
-      - name: mem0
-        image: mem0ai/mem0:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: postgres-credentials
-              key: database-url
-```
-
-**When Used**:
-- Custom init containers
-- Non-standard configurations
-- Custom resource types (e.g., Prometheus ServiceMonitor)
-- CronJobs for scheduled functions
 
 ---
 
-## 8. Networking & Security
+## 11. Implementation Phases
 
-### 8.1 Ingress Architecture
+### Phase 1: Core Infrastructure ✅ COMPLETE (2026-01-07)
 
-**Local Development** (k3d):
-```
-User Browser
-  ↓
-localhost:8080 (k3d port mapping)
-  ↓
-K3s Service (NodePort 31112)
-  ↓
-OpenFaaS Gateway / mem0 API
-```
+**Goal**: Deploy base Kubernetes infrastructure with database and queue.
 
-**Production** (Oracle Cloud):
-```
-User Browser
-  ↓
-HTTPS (any domain)
-  ↓
-Cloudflare Tunnel
-  ├─ DDoS Protection
-  ├─ DNS Failover
-  └─ Zero-Trust Authentication
-  ↓
-cloudflared Pod (K8s)
-  ↓
-Traefik Ingress Controller (built-in K3s)
-  ├─ Route by hostname
-  ├─ TLS termination (Cloudflare origin cert)
-  └─ Load balance across pods
-  ↓
-Service Endpoints
-  ├─ openfaas.example.com → OpenFaaS Gateway
-  ├─ mem0.example.com → Mem0 API
-  ├─ api.example.com → Custom API (future)
-```
+**Tasks**:
+- [x] Remove OpenFaaS from helmfile
+- [x] Add CloudNativePG operator to helmfile
+- [x] Add Dragonfly to helmfile
+- [x] Add KEDA to helmfile
+- [x] Deploy PostgreSQL cluster with pgvector
+- [x] Create database schema (Mem0, LlamaIndex, inbox tables)
+- [x] Verify connectivity between components
 
-**DNS Configuration** (Cloudflare dashboard):
-```
-openfaas.example.com    CNAME    k3s-cluster.example.com
-mem0.example.com        CNAME    k3s-cluster.example.com
-api.example.com         CNAME    k3s-cluster.example.com
-```
+**Deliverable**: ✅ K3d cluster running with Postgres + Dragonfly + KEDA operational.
 
-**Tunnel Setup**:
-```bash
-# Create tunnel (one-time)
-cloudflared tunnel create k3s-cluster
+### Phase 1.5: Development Toolchain (Current Sprint)
 
-# Configure routing
-cloudflared tunnel route dns k3s-cluster openfaas.example.com
-cloudflared tunnel route dns k3s-cluster mem0.example.com
+**Goal**: Modernize dev environment with uv, ruff, basedpyright, lefthook, Taskfile, Alembic.
 
-# Deploy credentials
-kubectl create secret generic cloudflare-tunnel \
-  --namespace cloudflare \
-  --from-file=credentials.json=~/.cloudflare/k3s-cluster.json
-```
+**Tasks**:
+- [ ] Update flake.nix (remove faas-cli, add modern tools)
+- [ ] Create pyproject.toml (Python 3.13, dependencies, tool configs)
+- [ ] Create Taskfile.yml (dev tasks: lint, format, typecheck, db:*)
+- [ ] Create lefthook.yml (pre-commit hooks: ruff, basedpyright)
+- [ ] Setup Alembic (migrations from SQLAlchemy models)
+- [ ] Update documentation (ARCHITECTURE, DEVELOPMENT, README)
 
-### 8.2 Secrets Management
+**Deliverable**: Modern Python dev environment with automated quality checks and declarative schema migrations.
 
-**Storage**: Kubernetes Secrets (etcd), encrypted at rest (OpenTofu setup)
+### Phase 2: Application Services (Next Sprint)
 
-**Secrets Required**:
+**Goal**: Build and deploy MyContextProtocol API and worker.
 
-| Secret | Namespace | Key | Used By |
-|--------|-----------|-----|---------|
-| `postgresql-secret` | database | password | PostgreSQL, Mem0 |
-| `openai-api-key` | openfaas-fn | api-key | embed-doc, query-memory |
-| `mem0-secrets` | mem0 | api-key | Mem0 API startup |
-| `cloudflare-tunnel` | cloudflare | credentials.json | cloudflared pod |
-| `minio-secret` | minio | root-password | MinIO admin |
+**Tasks**:
+- [ ] Create FastAPI gateway service
+  - [ ] POST /ingest endpoint (writes to Dragonfly queue)
+  - [ ] POST /context/state endpoint (queries Mem0)
+  - [ ] POST /context/query endpoint (queries LlamaIndex)
+- [ ] Create Omni-Worker container
+  - [ ] LLM extraction with instructor + Pydantic
+  - [ ] Mem0 library integration (embedded mode)
+  - [ ] LlamaIndex PropertyGraph integration
+  - [ ] Parallel writes to both stores
+- [ ] Create KEDA ScaledJob for worker
+- [ ] Write Dockerfiles for gateway and worker
+- [ ] Create Helm chart for mycontextprotocol
+- [ ] Deploy and test end-to-end flow
 
-**Creating Secrets**:
+**Deliverable**: Working ingestion pipeline: API → Queue → Worker → Postgres (Mem0 + LlamaIndex)
 
-```bash
-# Create and apply (do NOT commit to git!)
-kubectl create secret generic postgresql-secret \
-  --namespace database \
-  --from-literal=password=<secure-random-password>
+### Phase 3: Query & Retrieval (Sprint 3)
 
-kubectl create secret generic openai-api-key \
-  --namespace openfaas-fn \
-  --from-literal=api-key=sk-...
+**Goal**: Implement State and Tools query patterns.
 
-# Reference in Helm values
-# mem0-values.yaml:
-env:
-  - name: OPENAI_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: openai-api-key
-        key: api-key
-```
+**Tasks**:
+- [ ] Implement `/context/state` logic
+  - [ ] Query Mem0 for user facts
+  - [ ] Format as System Prompt injection
+  - [ ] Return within 100ms SLA
+- [ ] Implement `/context/query` logic
+  - [ ] Semantic search (LlamaIndex vector store)
+  - [ ] Graph traversal (LlamaIndex PropertyGraph)
+  - [ ] Hybrid result merging
+- [ ] Add query result caching (Dragonfly)
+- [ ] Performance testing and optimization
 
-**No Secrets in Git**:
-- `.gitignore` excludes `*.secret.yaml`
-- `values/` checked into git (no sensitive data)
-- Secrets created manually post-deployment or via CI/CD secrets
+**Deliverable**: Both State (middleware) and Tools (agentic) query patterns working.
 
-### 8.3 Single-User Model
+### Phase 4: Frontend Integration (Sprint 4)
 
-**Current Architecture**: No authentication
+**Goal**: Connect OpenWebUI to MyContextProtocol.
 
-**Rationale**: 
-- Designed for single user, single device initially
-- System runs behind Cloudflare Tunnel (already authenticated at network layer)
-- Future: Add Cloudflare Access for multi-user
+**Tasks**:
+- [ ] Write OpenWebUI Filter for `/context/state` (Mem0 injection)
+- [ ] Register `/context/query` as OpenWebUI Tool
+- [ ] Deploy OpenWebUI via Helmfile
+- [ ] Deploy LiteLLM proxy
+- [ ] End-to-end testing with real chat interactions
 
-**Future Enhancements** (planned but not implemented):
+**Deliverable**: Full Personal AI Stack with State + Tools integration working.
 
-1. **Cloudflare Access**:
-```yaml
-# cloudflared-values.yaml (future)
-cloudflare:
-  accessPolicy:
-    - domain: openfaas.example.com
-      emails: ["user@example.com"]
-```
+### Phase 5: Advanced Features (Future)
 
-2. **Kubernetes RBAC** (for multi-user cluster):
-```yaml
-# user-role.yaml (future)
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  namespace: openfaas-fn
-  name: function-deployer
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "logs"]
-    verbs: ["get", "list"]
-```
+**Deferred to Phase 2/3** (after MVP):
+- [ ] Dragonfly context cache (cache Mem0 results, 5-30 min TTL)
+- [ ] MinIO deployment for file storage
+- [ ] Multi-modal ingestion (PDFs, images, audio)
+- [ ] Query routing strategies (router LLM, fan-out, hierarchical)
+- [ ] Backup strategy (Postgres → MinIO daily)
+- [ ] Monitoring and observability (Prometheus, Grafana)
 
-3. **API Token Authentication** (future):
+---
+
+## 12. Phase 2/3 Features (Deferred)
+
+### 12.1 Dragonfly Context Cache
+
+**Problem**: Mem0 queries add 50-100ms latency on every request.
+
+**Solution**: Cache recent user context in Dragonfly with short TTL.
+
+**Implementation**:
 ```python
-# In function handlers
-def validate_token(request):
-    token = request.headers.get("Authorization")
-    # Validate against secret store
-    if not token_valid(token):
-        raise Unauthorized()
+# In /context/state endpoint
+def get_user_context(user_id: str) -> str:
+    # Check cache first
+    cache_key = f"user:context:{user_id}"
+    cached = dragonfly.get(cache_key)
+    
+    if cached:
+        return cached
+    
+    # Cache miss - query Mem0
+    context = mem0.search(user_id=user_id)
+    formatted = format_for_prompt(context)
+    
+    # Cache for 5 minutes
+    dragonfly.setex(cache_key, 300, formatted)
+    
+    return formatted
 ```
 
-**Security Posture (Current)**:
-- ✅ Network isolation (Cloudflare Tunnel)
-- ✅ HTTPS encryption (Cloudflare + K8s)
-- ✅ No public IP exposure
-- ❌ No user-level authentication
-- ❌ No request signing
+**Benefit**: Reduces latency from ~100ms to ~5ms for rapid back-and-forth conversations.
 
----
+**Trade-off**: Context may be stale for up to 5 minutes after new facts learned.
 
-## 9. Implementation Phases
+### 12.2 Query Routing Strategies
 
-Recommended development and deployment order:
-
-### Phase 1: Infrastructure Foundation (Week 1-2)
-
-**Goal**: Get K3s cluster running with persistent storage
-
-**Tasks**:
-1. ☐ Set up Oracle Cloud account and free tier VM
-2. ☐ Write OpenTofu manifests for VM provisioning
-3. ☐ SSH into VM, verify K3s installation
-4. ☐ Configure kubectl locally to access cluster
-5. ☐ Test persistent volumes (local-path storage class)
-6. ☐ Set up git repository with infra/ directory
-
-**Deliverable**: K3s cluster running, kubectl access works
-
-### Phase 2: Core Services Deployment (Week 2-3)
-
-**Goal**: Deploy database, messaging, and function platform
-
-**Tasks**:
-1. ☐ Add Bitnami repository to Helm
-2. ☐ Deploy PostgreSQL via helmfile
-3. ☐ Verify PostgreSQL connectivity, create databases
-4. ☐ Add OpenFaaS repository
-5. ☐ Deploy OpenFaaS gateway + worker
-6. ☐ Configure OpenFaaS basic auth
-7. ☐ Test function deployment (hello-world)
-
-**Deliverables**:
-- PostgreSQL running, accessible
-- OpenFaaS gateway accessible on NodePort
-- NATS queue working within cluster
-
-### Phase 3: Mem0 Integration (Week 3-4)
-
-**Goal**: Add AI memory layer
-
-**Tasks**:
-1. ☐ Add Mem0 chart repository
-2. ☐ Deploy Mem0 via helmfile
-3. ☐ Configure PostgreSQL connectivity
-4. ☐ Verify Mem0 API endpoints
-5. ☐ Test fact extraction API
-6. ☐ Set up Mem0 secrets (API keys if required)
-
-**Deliverable**: Mem0 API responding to fact extraction requests
-
-### Phase 4: Function Development (Week 4-5)
-
-**Goal**: Implement custom business logic functions
-
-**Functions to Build** (in order of dependency):
-1. ☐ **add-memory**: Insert data into inbox
-2. ☐ **process-inbox**: Cron job, routes items to extraction
-3. ☐ **embed-doc**: Generate embeddings, store in pgvector
-4. ☐ **query-memory**: Semantic search across all layers
-
-**Testing**:
-- Unit tests for each function
-- Integration tests with PostgreSQL + Mem0
-- Load testing (concurrent requests)
-
-**Deliverable**: All 4 functions deployed and operational
-
-### Phase 5: Data Layer & Storage (Week 5-6)
-
-**Goal**: Set up file storage and vector search
-
-**Tasks**:
-1. ☐ Design PostgreSQL schema (inbox, document_store, etc.)
-2. ☐ Deploy MinIO for S3-compatible storage
-3. ☐ Create MinIO buckets (vault-files, vault-exports)
-4. ☐ Test MinIO integration from functions
-5. ☐ Implement pgvector index creation
-6. ☐ Test embedding + vector search
-
-**Deliverable**: Files stored in MinIO, embeddings searchable via pgvector
-
-### Phase 6: Ingress & Networking (Week 6-7)
-
-**Goal**: Expose system securely to users
-
-**Tasks** (Local Dev):
-1. ☐ Configure k3d port forwarding
-2. ☐ Test function invocation via HTTP
-
-**Tasks** (Production):
-1. ☐ Create Cloudflare tunnel
-2. ☐ Configure tunnel credentials
-3. ☐ Deploy cloudflared controller
-4. ☐ Set up DNS routing (CNAME → tunnel)
-5. ☐ Test HTTPS access to functions
-6. ☐ Secure with API keys / Cloudflare Access (future)
-
-**Deliverable**: Functions accessible via HTTPS domains
-
-### Phase 7: Client Integration (Week 7-8, Future)
-
-**Goal**: Build user-facing interfaces
+**Problem**: Should we query Mem0, LlamaIndex, or both?
 
 **Options**:
-- CLI tool (Python Click)
-- Web UI (React/Next.js)
-- Telegram bot
-- Email integration
-- Browser extension
 
-**Status**: Out of scope for initial deployment
+**A. Router LLM** (decides which store to query):
+```python
+# Classify query type first
+query_type = llm.classify(query, types=["factual", "personal", "mixed"])
 
----
-
-## 10. Prerequisites
-
-### Accounts & Credentials
-
-| Account | Purpose | Free Tier |
-|---------|---------|-----------|
-| **Oracle Cloud** | VM hosting | Yes (4 OCPU, 24GB RAM, 200GB storage) |
-| **Cloudflare** | Tunnel ingress, DNS | Yes (free plan + tunnel feature) |
-| **GitHub** | Code repository | Yes |
-| **OpenAI** | Embedding model | Requires payment ($0.02 per 1M tokens) |
-
-### Software Tools (Local Machine)
-
-```bash
-# Install all prerequisites
-brew install kubernetes-cli helm helmfile      # macOS
-# OR
-apt-get install kubectl helm helmfile          # Linux
-
-# Install additional tools
-brew install tofu                               # OpenTofu (Terraform fork)
-brew install k3d                                # K3s in Docker (local dev)
-faas-cli                                        # OpenFaaS CLI
-docker                                          # Docker Desktop or podman
-
-# Verify installations
-kubectl version --client
-helm version
-helmfile --version
-k3d version
-tofu version
+if query_type == "personal":
+    results = mem0.search(query)
+elif query_type == "factual":
+    results = llamaindex.query(query)
+else:  # mixed
+    results = merge(mem0.search(query), llamaindex.query(query))
 ```
 
-### Required Secrets
+**B. Fan-out** (query both, merge results):
+```python
+# Always query both in parallel
+mem0_results, llamaindex_results = asyncio.gather(
+    mem0.search_async(query),
+    llamaindex.query_async(query)
+)
 
-**Before Deploying Production**:
-
-1. **Cloudflare Tunnel** (for production only)
-   ```bash
-   cloudflared tunnel login
-   cloudflared tunnel create k3s-cluster
-   export CLOUDFLARE_ACCOUNT_ID="<account-id>"
-   export CLOUDFLARE_TUNNEL_SECRET="<secret-from-json>"
-   ```
-
-2. **Oracle Cloud API Credentials** (for OpenTofu)
-   ```bash
-   # Download from Oracle Cloud console
-   ~/.oci/config          # API key config
-   ~/.oci/oci_api_key.pem # Private key
-   ```
-
-3. **OpenAI API Key**
-   ```bash
-   # Create at https://platform.openai.com/account/api-keys
-   export OPENAI_API_KEY="sk-..."
-   ```
-
-4. **PostgreSQL Password** (generate random)
-   ```bash
-   export PG_PASSWORD="$(openssl rand -base64 32)"
-   ```
-
-### Environment Variables
-
-**Create `.env` file** (local development):
-```bash
-export CLOUDFLARE_ACCOUNT_ID="your-account-id"
-export CLOUDFLARE_TUNNEL_SECRET="your-tunnel-secret"
-export OPENAI_API_KEY="sk-..."
-export PG_PASSWORD="secure-random-password"
-export MINIO_ROOT_PASSWORD="minioadmin-password"
+# Merge and re-rank
+results = merge_and_rerank(mem0_results, llamaindex_results)
 ```
 
-**Load before deployment**:
-```bash
-source .env
-helmfile sync
+**C. Hierarchical** (check Mem0 first, then LlamaIndex if needed):
+```python
+# Query Mem0 for user context first
+mem0_results = mem0.search(query)
+
+# If not enough results, query knowledge base
+if len(mem0_results) < threshold:
+    llamaindex_results = llamaindex.query(query)
+    results = mem0_results + llamaindex_results
+```
+
+**Recommendation**: Start with **Fan-out (B)** for simplicity, optimize to Router (A) if cost becomes an issue.
+
+### 12.3 MinIO File Storage
+
+**Use Case**: Store PDFs, images, documents for later processing or retrieval.
+
+**Schema**:
+```
+vault-files/
+  ├── pdf/document-{uuid}.pdf
+  ├── images/{uuid}.jpg
+  └── documents/{uuid}.txt
+
+vault-exports/
+  ├── backups/postgres-{date}.dump
+  └── exports/knowledge-graph-{date}.json
+```
+
+**Integration**:
+```python
+# In Omni-Worker, after extraction
+if file_reference in metadata:
+    # Store original file
+    minio.fput_object(
+        bucket="vault-files",
+        object_name=f"pdf/{inbox_id}.pdf",
+        file_path=temp_file_path
+    )
+    
+    # Store reference in document_store
+    vault_reference = f"s3://vault-files/pdf/{inbox_id}.pdf"
 ```
 
 ---
 
-## 11. Future Enhancements
+## 13. Success Criteria
 
-### Short-term (1-2 months)
+### MVP (Phase 1-4 Complete)
 
-- **MinIO Deployment**: Add S3-compatible storage to helmfile
-- **Data Persistence**: Implement backup strategy (daily snapshots to S3)
-- **Observability**: Add Prometheus + Grafana for monitoring
-- **Function Lifecycle**: Implement function versioning, canary deployments
-- **Local Embeddings**: Replace OpenAI with local model (Ollama) to reduce costs
+- [ ] Ingestion: POST /ingest → Queue → Worker → Postgres (both Mem0 + LlamaIndex)
+- [ ] State: POST /context/state returns user context <100ms
+- [ ] Tools: POST /context/query returns relevant results <500ms
+- [ ] Frontend: OpenWebUI connected with Filter (State) + Tool (Knowledge)
+- [ ] End-to-End: User message → Context injected → LLM response → Tool call (if needed) → Final response
 
-### Medium-term (3-6 months)
+### Phase 2/3 Complete
 
-- **GitOps**: Implement ArgoCD for continuous deployment
-- **Multi-region**: Add replication to second K3s cluster
-- **Kustomize**: Transition from plain Helm to Kustomize for more flexibility
-- **Client Integrations**: Build CLI, web UI, browser extension
-- **Advanced Search**: Add full-text search (PostgreSQL FTS) alongside vector search
-
-### Long-term (6+ months)
-
-- **Multi-user**: Add per-user namespaces, RBAC, authentication
-- **Scaling**: Migrate to full Kubernetes cluster (3+ nodes)
-- **Replication**: Cross-region failover, multi-master setup
-- **Observability**: Distributed tracing (Jaeger), centralized logging (ELK)
-- **Analytics**: Dashboards showing memory coverage, search patterns
-
-### Potential Integrations
-
-- **Email Ingestion**: Automatically import emails as memories
-- **Browser Extension**: Clip web articles, sync to mycontextprotocol
-- **Voice Input**: Transcribe voice notes → memory inbox
-- **Calendar Integration**: Sync events, meeting notes
-- **External APIs**: Notion, Obsidian, Roam Research sync
-- **OpenWebUI Integration**: Self-hosted web interface for querying memories and managing context
-- **ChatGPT/LLM Client Adapters**: API adapters for ChatGPT, Claude, and other LLM clients to query personal memory
-- **Copilot Proxy**: GitHub Copilot-compatible proxy that injects personal context into code completions
-- **Codex CLI Proxy**: Command-line interface proxy for OpenAI Codex with personal memory augmentation
+- [ ] Cache: Dragonfly context cache reduces State latency to <10ms
+- [ ] Files: MinIO stores PDFs, Worker processes them
+- [ ] Routing: Query routing strategy implemented (Router/Fan-out)
+- [ ] Monitoring: Prometheus metrics, Grafana dashboards
+- [ ] Backups: Daily Postgres backups to MinIO
 
 ---
 
-## 12. Resource Allocation Summary
+## 14. Architecture Trade-offs
 
-### Memory Budget (24 GB Oracle VM)
+### Decisions Made
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ Total Available: 24 GB                                  │
-├─────────────────────────────────────────────────────────┤
-│ K3s System:                         ~1.5 GB │███░░░░░░│
-│ PostgreSQL + indexes:               ~1.0 GB │██░░░░░░░│
-│ Mem0 (model in memory):             ~2.0 GB │████░░░░░│
-│ OpenFaaS gateway + workers:         ~0.3 GB │░░░░░░░░░│
-│ NATS messaging:                     ~0.15 GB│░░░░░░░░░│
-│ MinIO:                              ~0.5 GB │█░░░░░░░░│
-│ Function execution headroom:        ~1.0 GB │██░░░░░░░│
-│ Qdrant (optional):                  ~1.0 GB │██░░░░░░░│
-│ Redis cache:                        ~0.2 GB │░░░░░░░░░│
-│ OS + System:                        ~2.0 GB │████░░░░░│
-├─────────────────────────────────────────────────────────┤
-│ Available Headroom:                 ~13 GB  │██████████│
-└─────────────────────────────────────────────────────────┘
-```
+| Decision | Trade-off | Rationale |
+|----------|-----------|-----------|
+| **Mem0 as library** | Tighter coupling | Avoids ARM64 server blocker, simpler deployment, direct Python access |
+| **Single Omni-Worker** | Can't scale components independently | Simpler for MVP, atomic transactions, easier debugging |
+| **KEDA + Containers** | More K8s complexity than FaaS | No framework lock-in, standard patterns, language-agnostic |
+| **Postgres for graph** | Not optimized for deep traversal | Personal scale (<100k nodes, 1-2 hops), avoids Neo4j Java overhead |
+| **Dragonfly dual-role** | Single point of failure | Redis-compatible, lower resource usage, simple to operate |
+| **State always queries Mem0** | Latency on every request | Ensures agent always has user context, can be cached in Phase 2/3 |
 
-### CPU Allocation
+### Future Optimization Paths
 
-| Component | Dev (request) | Dev (limit) | Prod (request) | Prod (limit) |
-|-----------|---------------|------------|----------------|--------------|
-| PostgreSQL | 250m | 500m | 500m | 1000m |
-| Mem0 | 100m | 500m | 250m | 1000m |
-| OpenFaaS Gateway | 50m | 200m | 100m | 200m |
-| Functions | 50m | 200m | 100m | 500m |
-| NATS | 50m | 200m | 50m | 200m |
-| Total Requested | ~500m | - | ~1000m | - |
-
-**4 OCPU = 4000m**, so we use ~25% of CPU at normal load with plenty of headroom for spikes.
-
-### Storage Budget
-
-| Component | Dev | Prod | Notes |
-|-----------|-----|------|-------|
-| PostgreSQL | 10 GB | 50 GB | Grows with data |
-| MinIO | 50 GB | 100 GB | Grows with files |
-| System | 20 GB | 20 GB | OS + K3s |
-| Free Space | 20 GB | 30 GB | Buffer for growth |
+- **Mem0 to separate service**: If multi-language clients needed
+- **Split Omni-Worker**: If processing time imbalance emerges
+- **Apache AGE for graph**: If graph queries become complex (3+ hops, algorithms)
+- **Separate cache service**: If Dragonfly becomes bottleneck
+- **Router LLM for queries**: If query cost becomes prohibitive
 
 ---
 
-## 13. Troubleshooting Quick Reference
+## 15. Development Toolchain
 
-### Cluster Issues
+### 15.1 Philosophy
+
+**Modern Python with Nix-First Tooling**: All development tools are managed via Nix flake for reproducibility. Python package management uses `uv` for speed, with `uv2nix` bridging to Nix for container builds.
+
+**Declarative Everything**: Schema defined as SQLAlchemy models (code is source of truth), migrations autogenerated via Alembic. Pre-commit hooks and tasks defined in YAML configs.
+
+**No Vendor Lock-In**: Rejected tools with gated "pro" features (Atlas). Prefer open tooling with community support.
+
+### 15.2 Technology Stack
+
+| Category | Tool | Purpose | Why This Choice |
+|----------|------|---------|----------------|
+| **Python Version** | 3.13 | Runtime | Latest stable with performance improvements |
+| **Package Manager** | uv | Fast dependency resolution | 10-100x faster than pip, deterministic uv.lock |
+| **Nix Bridge** | uv2nix | Python ↔ Nix integration | Bridges uv.lock to Nix reproducibility (lnbits pattern) |
+| **Type Checker** | basedpyright | Static analysis | Faster than mypy, Pydantic v2 native, strict mode |
+| **Linter/Formatter** | ruff | Code quality | Replaces black+isort+flake8, Rust-fast |
+| **Pre-commit** | lefthook | Git hooks | Respects Nix PATH, parallel execution, no cache duplication |
+| **Task Runner** | Taskfile (go-task) | Dev automation | YAML-based, simpler than Make, cross-platform |
+| **DB Migrations** | Alembic | Schema management | SQLAlchemy models → autogenerate migrations |
+| **Security** | GitHub Dependabot | Dependency updates | Free, automatic, no local tooling needed |
+| **Container Builder** | Nix dockerTools | Image creation | No Dockerfiles, reproducible, minimal layers |
+| **K8s Debugging** | k9s + stern | Cluster inspection | TUI browser + log streaming |
+
+### 15.3 Development Workflow
 
 ```bash
-# Check cluster status
-kubectl cluster-info
-kubectl get nodes
+# 1. Enter Nix dev shell
+nix develop
 
-# Check all pods across namespaces
-kubectl get pods --all-namespaces
+# 2. Install Python dependencies
+uv sync
 
-# Check service status
-kubectl get svc --all-namespaces
+# 3. Run quality checks
+task check          # Runs: format + lint + typecheck
 
-# Check persistent volumes
-kubectl get pv
-kubectl get pvc --all-namespaces
+# 4. Individual checks
+task format         # ruff format
+task lint           # ruff check
+task typecheck      # basedpyright
+
+# 5. Database migrations
+task db:autogenerate -- "migration message"  # Generate from SQLAlchemy models
+task db:upgrade                              # Apply migrations
+task db:downgrade                            # Rollback
+
+# 6. Git hooks (automatic)
+git commit          # Runs lefthook: ruff + basedpyright
+git push            # Runs lefthook: task check
 ```
 
-### PostgreSQL
+### 15.4 SQLAlchemy + Alembic Pattern
 
-```bash
-# Port-forward
-kubectl port-forward -n database svc/postgresql 5432:5432
+**Source of Truth**: SQLAlchemy models in `src/mycontextprotocol/models.py`
 
-# Connect
-psql -h localhost -U myapp -d myapp
+**Workflow**:
+1. Define/modify models in Python (e.g., add column, new table)
+2. Run `task db:autogenerate -- "description"` → Alembic inspects models, generates migration
+3. Review generated migration in `alembic/versions/*.py`
+4. Run `task db:upgrade` → Apply to database
 
-# Check logs
-kubectl logs -n database -l app.kubernetes.io/name=postgresql
+**Example**:
+```python
+# src/mycontextprotocol/models.py
+from sqlalchemy import Column, String, TIMESTAMP, Boolean
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
+
+class Inbox(Base):
+    __tablename__ = "inbox"
+    
+    id = Column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
+    content = Column(String, nullable=False)
+    source = Column(String(100))
+    processed = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=text("now()"))
 ```
 
-### OpenFaaS
+Then: `task db:autogenerate -- "add inbox table"` → migration auto-created.
 
-```bash
-# Get gateway password
-kubectl get secret -n openfaas basic-auth -o jsonpath="{.data.basic-auth-password}" | base64 --decode
+### 15.5 Pre-commit Hooks (Lefthook)
 
-# Port-forward gateway
-kubectl port-forward -n openfaas svc/gateway 8080:8080
+**Automatic checks on commit/push**:
 
-# Check function pods
-kubectl get pods -n openfaas-fn
+```yaml
+# lefthook.yml
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      run: ruff format --check {staged_files}
+    lint:
+      run: ruff check {staged_files}
+    typecheck:
+      run: basedpyright {staged_files}
 
-# View function logs
-kubectl logs -n openfaas-fn deployment/<function-name>
+pre-push:
+  commands:
+    full-check:
+      run: task check
 ```
 
-### Mem0
+**Benefits**:
+- Catches issues before CI
+- Respects Nix PATH (unlike pre-commit framework)
+- Parallel execution (fast)
+- No redundant caches
+
+## 16. Getting Started
+
+### 16.1 Local Development (k3d)
 
 ```bash
-# Port-forward
-kubectl port-forward -n mem0 svc/mem0 8080:8080
+# 1. Start k3d cluster
+k3d cluster create mcp-local
 
-# Check logs
-kubectl logs -n mem0 deployment/mem0
-
-# Test API
-curl http://localhost:8080/health
-```
-
-### Network
-
-```bash
-# Test DNS within cluster
-kubectl run -it --rm debug --image=nicolaka/netshoot --restart=Never -- sh
-# Inside pod:
-nslookup postgresql.database.svc.cluster.local
-curl http://mem0.mem0.svc.cluster.local:8080/health
-```
-
-### Helm
-
-```bash
-# List releases
-helm list --all-namespaces
-
-# Check release status
-helm status postgresql -n database
-
-# View values
-helm get values postgresql -n database
-
-# Rollback release
-helm rollback postgresql -n database
-```
-
----
-
-## 14. Getting Started
-
-### Quick Start (Local Development)
-
-```bash
-# 1. Clone repository
-git clone https://github.com/yourname/mycontextprotocol.git
-cd mycontextprotocol
-
-# 2. Start K3s cluster locally
-k3d cluster create mycontextprotocol
-
-# 3. Install Helm dependencies
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo add openfaas https://openfaas.github.io/faas-netes/
-helm repo update
-
-# 4. Deploy services
+# 2. Deploy infrastructure
 cd infra/k8s
 helmfile sync
 
-# 5. Wait for pods to be ready
-kubectl wait --for=condition=Ready pod -l app=postgresql -n database --timeout=300s
+# 3. Wait for services
+kubectl wait --for=condition=Ready pod -l app=postgres-cluster -n database --timeout=300s
 
-# 6. Port-forward services
-kubectl port-forward -n database svc/postgresql 5432:5432 &
-kubectl port-forward -n openfaas svc/gateway 8080:8080 &
+# 4. Apply schema
+kubectl exec -n database postgres-cluster-1 -it -- psql -U postgres < ../../scripts/init-db.sql
 
-# 7. Test
-curl -X GET http://localhost:8080/function/query-memory
+# 5. Port-forward for testing
+kubectl port-forward -n database svc/postgres-cluster-rw 5432:5432 &
+kubectl port-forward -n default svc/dragonfly 6379:6379 &
+kubectl port-forward -n default svc/mycontextprotocol-gateway 8000:8000 &
 
-# 8. Cleanup
-k3d cluster delete mycontextprotocol
+# 6. Test ingestion
+curl -X POST http://localhost:8000/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Test memory", "source": "api"}'
+
+# 7. Verify processing
+kubectl logs -n default -l app=omni-worker -f
 ```
 
-### Production Deployment
+### 16.2 Production Deployment (Oracle Cloud)
 
-```bash
-# 1. Set up OpenTofu
-cd infra/tofu
-tofu init
-tofu apply -var="compartment_id=<your-compartment-id>"
-# Note: instance IP from output
-
-# 2. SSH into VM
-ssh ubuntu@<instance-ip>
-
-# 3. K3s should be auto-installed, verify
-sudo k3s kubectl get nodes
-
-# 4. Copy kubeconfig to local machine
-scp ubuntu@<instance-ip>:/etc/rancher/k3s/k3s.yaml ~/.kube/config-prod
-
-# 5. Update kubeconfig with correct IP
-sed -i '' "s/127.0.0.1/<instance-ip>/g" ~/.kube/config-prod
-
-# 6. Deploy via Helmfile
-KUBECONFIG=~/.kube/config-prod helmfile -e production sync
-
-# 7. Configure Cloudflare Tunnel
-cloudflared tunnel create k3s-cluster
-# Follow prompts, get credentials
-
-# 8. Deploy tunnel to cluster
-kubectl create secret generic cloudflare-tunnel \
-  -n cloudflare \
-  --from-file=credentials.json=~/.cloudflare/k3s-cluster.json
-
-# 9. Deploy cloudflared
-KUBECONFIG=~/.kube/config-prod helmfile -e production -l name=cloudflared sync
-
-# 10. Test
-curl https://openfaas.yourdomain.com/
-```
+See separate DEPLOYMENT.md (to be created in Phase 1).
 
 ---
 
-## Appendix: File Structure
+## 17. Summary
 
-```
-mycontextprotocol/
-├── .agentinstructions/
-│   └── ARCHITECTURE.md              # This file
-├── .beads/                          # Issue tracking config
-├── docs/                            # Additional documentation
-├── functions/                       # OpenFaaS function definitions
-│   ├── add-memory/
-│   ├── process-inbox/
-│   ├── embed-doc/
-│   └── query-memory/
-├── infra/
-│   ├── tofu/                        # OpenTofu IaC (VM provisioning)
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── cloud-init.yaml
-│   └── k8s/                         # Kubernetes + Helmfile
-│       ├── helmfile.yaml             # Helm release definitions
-│       ├── values/                   # Chart values (dev defaults)
-│       │   ├── postgresql-values.yaml
-│       │   ├── openfaas-values.yaml
-│       │   ├── mem0-values.yaml
-│       │   └── cloudflared-values.yaml
-│       ├── environments/             # Environment-specific configs
-│       │   ├── default.yaml          # Local dev settings
-│       │   └── production.yaml       # Prod settings
-│       └── README.md                 # Deployment instructions
-├── scripts/                         # Utility scripts
-├── README.md                        # Project overview
-├── AGENTS.md                        # Agent instructions
-└── .gitignore
-```
+mycontextprotocol is architected as a **two-part system**:
 
----
+1. **MyContextProtocol** (Backend) - Memory-as-a-Service API with KEDA-scaled workers
+2. **Personal AI Stack** (Frontend) - OpenWebUI + LiteLLM consuming the memory API
 
-## Summary
+The **Subjective/Objective split** (Mem0 vs LlamaIndex) prevents memory pollution, while the **State vs Tools pattern** ensures efficient context injection (automatic) and knowledge retrieval (on-demand).
 
-mycontextprotocol is a **sovereign, cloud-agnostic personal memory system** built on:
+**Key Technologies**:
+- **KEDA + Containers** (not OpenFaaS) for scale-to-zero without framework lock-in
+- **Dragonfly** (not Redis/NATS) for queue + future cache
+- **CloudNativePG** (not Bitnami Helm) for declarative Postgres with backups
+- **Mem0 library** (not API server) to avoid ARM64 blocker
+- **LlamaIndex PropertyGraph on Postgres** (not Neo4j) for personal-scale graph
 
-- **Infrastructure**: K3s on Oracle Cloud ARM (or local k3d)
-- **Data**: PostgreSQL + pgvector (structured) + MinIO (files) + Mem0 (intelligence)
-- **Processing**: OpenFaaS serverless functions
-- **Ingress**: Cloudflare Tunnel (zero-trust)
-
-The tri-layer data model (**Vault + Library + Brain**) separates storage concerns while enabling powerful semantic search and AI-driven retrieval. The architecture is designed to be self-hosted, portable, and extensible.
-
-Implementation follows a phased approach, starting with infrastructure, then core services, then functions and data layer integration. The system is ready for single-user deployment and can be extended to multi-user with proper authentication and RBAC.
-
-For questions, see the troubleshooting section or review specific component documentation in sections 5-6.
+The system is designed for **single-user initially**, with clear paths to multi-user and advanced features in Phase 2/3.

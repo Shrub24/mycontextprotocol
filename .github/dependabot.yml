@@ -1,0 +1,36 @@
+version: 2
+
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      fastapi:
+        patterns:
+          - "fastapi*"
+          - "uvicorn*"
+          - "starlette*"
+      ai-tools:
+        patterns:
+          - "mem0ai*"
+          - "llama-index*"
+          - "instructor*"
+      database:
+        patterns:
+          - "sqlalchemy*"
+          - "alembic*"
+          - "psycopg*"
+          - "pgvector*"
+      dev-dependencies:
+        patterns:
+          - "pytest*"
+          - "ruff*"
+          - "basedpyright*"
+    
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

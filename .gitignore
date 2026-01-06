@@ -13,6 +13,12 @@ venv/
 env/
 ENV/
 .venv
+uv.lock
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+*.egg-info/
 
 # OpenTofu/Terraform
 .terraform/
@@ -23,6 +29,13 @@ ENV/
 # Kubernetes
 kubeconfig
 *.kubeconfig
+
+# Alembic (generated migrations stay in git)
+# migrations are tracked, but local db files are not
+
+# Lefthook
+.lefthook/
+.lefthook-local.yml
 
 # Secrets
 *.secret.yaml
@@ -46,4 +59,6 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
-*.egg-info/
+
+# OpenCode session data (local AI assistant context)
+.opencode/

@@ -10,7 +10,7 @@ cloudflare:
   # accountId: "your-account-id"
   # tunnelName: "k3s-cluster"
   # secret: "your-tunnel-secret"
-  
+
   ingress:
     - hostname: "openfaas.yourdomain.com"
       service: http://gateway.openfaas.svc.cluster.local:8080
