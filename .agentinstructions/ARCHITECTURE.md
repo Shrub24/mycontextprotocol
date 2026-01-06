@@ -478,93 +478,121 @@ def insert_if_new(content: str, metadata: dict):
 
 ### 8.1 PostgreSQL Tables
 
-**Mem0 Tables** (managed by Mem0 library):
+#### Mem0 Tables (Auto-Managed by Library)
+
+Mem0's pgvector provider **automatically creates** its own table. We don't define or migrate this.
+
 ```sql
--- Automatically created by Mem0
-CREATE TABLE mem0_memories (
+-- Created automatically by Mem0 Python client
+-- Collection name: "mem0" (configurable)
+CREATE TABLE mem0 (
   id UUID PRIMARY KEY,
-  user_id VARCHAR,
-  content TEXT,
-  category VARCHAR,  -- "preference", "opinion", "habit"
-  confidence FLOAT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP
+  vector vector(768),  -- Dimension matches embedding model
+  payload JSONB        -- Contains: user_id, content, category, metadata, timestamps
 );
 
-CREATE TABLE mem0_entities (
-  id UUID PRIMARY KEY,
-  name VARCHAR,
-  entity_type VARCHAR,  -- "person", "organization", "concept"
-  metadata JSONB
-);
-
-CREATE TABLE mem0_relationships (
-  id UUID PRIMARY KEY,
-  from_entity UUID REFERENCES mem0_entities(id),
-  to_entity UUID REFERENCES mem0_entities(id),
-  relationship_type VARCHAR,  -- "knows", "works_at", "related_to"
-  metadata JSONB
-);
+-- Mem0 also creates pgvector extension automatically
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-**LlamaIndex Tables** (managed by PropertyGraphStore):
-```sql
--- Document store with embeddings
-CREATE TABLE document_store (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  content TEXT NOT NULL,
-  embedding vector(768),  -- Dimension based on embedding model
-  metadata JSONB DEFAULT '{}',
-  content_hash VARCHAR(64) UNIQUE,  -- For deduplication
-  vault_reference VARCHAR,  -- S3 path (future)
-  created_at TIMESTAMP DEFAULT now()
-);
+**Configuration**:
+```python
+from mem0 import Memory
 
--- Vector index for semantic search
-CREATE INDEX idx_embedding_cosine 
-  ON document_store USING hnsw (embedding vector_cosine_ops);
-
--- Content hash index for deduplication
-CREATE INDEX idx_content_hash ON document_store(content_hash);
-
--- Graph nodes (LlamaIndex PropertyGraph)
-CREATE TABLE graph_nodes (
-  id UUID PRIMARY KEY,
-  label VARCHAR,  -- "Person", "Event", "Project"
-  properties JSONB
-);
-
--- Graph edges (relationships)
-CREATE TABLE graph_edges (
-  id UUID PRIMARY KEY,
-  from_node UUID REFERENCES graph_nodes(id),
-  to_node UUID REFERENCES graph_nodes(id),
-  edge_type VARCHAR,  -- "attended", "works_on", "knows"
-  properties JSONB
-);
-
--- Indexes for graph traversal
-CREATE INDEX idx_edges_from ON graph_edges(from_node);
-CREATE INDEX idx_edges_to ON graph_edges(to_node);
+config = {
+    "vector_store": {
+        "provider": "pgvector",
+        "config": {
+            "connection_string": "postgresql://user:password@host:port/database",
+            "collection_name": "mem0",  # Table name
+            "embedding_model_dims": 768,  # Match your embedding model
+        }
+    }
+}
+memory = Memory.from_config(config)
 ```
 
-**Application Tables**:
+#### LlamaIndex Tables (Auto-Managed by Library)
+
+LlamaIndex's PGVectorStore **automatically creates** its tables when `perform_setup=True`.
+
+```sql
+-- Created automatically by LlamaIndex PGVectorStore
+-- Table name: data_<table_name> (e.g., data_documents)
+CREATE TABLE data_documents (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  text VARCHAR NOT NULL,
+  metadata_ JSONB,
+  node_id VARCHAR,
+  embedding VECTOR(768)
+  -- If hybrid_search=True:
+  -- text_search_tsv TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', text)) STORED
+);
+
+-- HNSW index for vector similarity search
+CREATE INDEX documents_embedding_idx 
+  ON data_documents USING hnsw (embedding vector_cosine_ops);
+
+-- If hybrid_search enabled:
+-- CREATE INDEX documents_text_search_idx ON data_documents USING gin (text_search_tsv);
+```
+
+**Configuration**:
+```python
+from llama_index.vector_stores.postgres import PGVectorStore
+
+vector_store = PGVectorStore.from_params(
+    database="app",
+    host="postgresql-cluster-rw.database.svc.cluster.local",
+    port=5432,
+    user="app",
+    password="...",
+    table_name="documents",  # Creates data_documents
+    embed_dim=768,
+    perform_setup=True,  # Auto-create table and indexes
+)
+```
+
+#### Property Graph Storage
+
+**Current Implementation**: SimplePropertyGraphStore (disk-based, persisted to filesystem).
+
+**Known Limitation**: Not suitable for production scale. Documented for future migration to Neo4j/Postgres-backed solution. See ticket for PropertyGraph migration (P3).
+
+**Future Options**:
+- Neo4jPropertyGraphStore (most feature-rich, requires separate service)
+- Custom Postgres implementation (integrate with existing database)
+- KuzuGraphStore (embedded, better performance than SimplePropertyGraphStore)
+
+#### Application Tables (Managed by Alembic)
+
+These are **our** tables, managed via SQLAlchemy models and Alembic migrations.
+
 ```sql
 -- Inbox queue (temporary, before processing)
 CREATE TABLE inbox (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   content TEXT NOT NULL,
-  source VARCHAR(100),  -- "api", "upload", "email"
-  target VARCHAR(100),  -- "mem0", "llamaindex", "both"
+  content_hash VARCHAR(64) NOT NULL,
+  source VARCHAR(100) NOT NULL,
+  target VARCHAR(100) NOT NULL,  -- "mem0", "llamaindex", "both"
   metadata JSONB DEFAULT '{}',
-  processed BOOLEAN DEFAULT false,
-  created_at TIMESTAMP DEFAULT now(),
-  processed_at TIMESTAMP
+  processed BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_inbox_pending ON inbox(processed, created_at) 
-  WHERE processed = false;
+-- Indexes for efficient querying
+CREATE INDEX idx_inbox_processed ON inbox(processed, created_at);
+CREATE INDEX idx_inbox_created_at ON inbox(created_at DESC);
+CREATE UNIQUE INDEX idx_inbox_content_hash ON inbox(content_hash) 
+  WHERE processed = false;  -- Deduplicate pending items only
 ```
+
+**Schema Management**:
+- **Mem0 & LlamaIndex**: Libraries handle their own schema (no Alembic migrations needed)
+- **Application tables**: Managed via `src/mycontextprotocol/models.py` + Alembic
+- **Source of truth**: SQLAlchemy models → `alembic revision --autogenerate` → migrations
 
 ### 8.2 Dragonfly Data Structures
 

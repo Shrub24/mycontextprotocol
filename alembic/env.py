@@ -76,8 +76,4 @@ def run_migrations_online() -> None:
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    try:
-        run_migrations_online()
-    except Exception:
-        # Fallback to offline mode if database is not available
-        run_migrations_offline()
+    run_migrations_online()
