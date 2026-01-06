@@ -69,11 +69,16 @@
             curl
             openssl
             
+            # C/C++ libraries for Python native extensions
+            stdenv.cc.cc.lib
+            
             # Optional (for production)
             # cloudflared
             # postgresql
             # minio-client
           ];
+          
+          LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
           
           shellHook = ''
             cat <<'EOF'
