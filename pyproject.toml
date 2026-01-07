@@ -10,30 +10,21 @@ authors = [
 ]
 
 dependencies = [
-    # Web framework
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
-    
-    # AI/Memory
-    "mem0ai>=0.1.0",
-    "llama-index>=0.12.0",
+    "fastapi>=0.115.6",
+    "uvicorn>=0.34.0",
+    "httpx>=0.28.1",
+    "mem0ai>=0.1.34",
+    "llama-index>=0.12.9",
     "llama-index-vector-stores-postgres>=0.4.0",
-    "llama-index-embeddings-openai>=0.3.0",
-    "instructor>=1.6.0",
-    
-    # Database
-    "sqlalchemy>=2.0.0",
+    "llama-index-embeddings-openai>=0.3.2",
+    "lightrag-hku>=0.0.0.5rc7",
+    "instructor>=1.7.3",
+    "sqlalchemy>=2.0.37",
     "alembic>=1.14.0",
-    "psycopg[binary]>=3.2.0",
-    "pgvector>=0.3.0",
-    
-    # Cache/Queue
-    "redis>=5.2.0",
-    
-    # Utilities
-    "pydantic>=2.10.0",
-    "pydantic-settings>=2.6.0",
-    "python-dotenv>=1.0.0",
+    "psycopg[binary]>=3.2.4",
+    "pgvector>=0.3.8",
+    "redis>=5.2.1",
+    "pydantic-settings>=2.7.1",
 ]
 
 [dependency-groups]

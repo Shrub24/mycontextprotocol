@@ -22,6 +22,8 @@ repositories:
     url: https://cloudnative-pg.github.io/charts
   - name: kedacore
     url: https://kedacore.github.io/charts
+  - name: dragonfly
+    url: https://dragonflydb.github.io/dragonfly-operator
 
 ---
 environments:
@@ -71,6 +73,33 @@ releases:
       - cnpg-system/cnpg-operator
     values:
       - values/cnpg-cluster.yaml
+      - values/{{ .Environment.Name }}.yaml
+    missingFileHandler: Warn
+
+  # ============================================================================
+  # Dragonfly
+  # ============================================================================
+  # Redis-compatible in-memory store for queues and caching
+  # Used for task queue and future context caching
+  - name: dragonfly-operator
+    namespace: dragonfly-system
+    chart: dragonfly/dragonfly-operator
+    version: v1.1.8
+    createNamespace: true
+    values:
+      - values/common.yaml
+      - values/{{ .Environment.Name }}.yaml
+    missingFileHandler: Warn
+
+  - name: dragonfly
+    namespace: queue
+    chart: dragonfly/dragonfly
+    version: v1.1.8
+    createNamespace: true
+    needs:
+      - dragonfly-system/dragonfly-operator
+    values:
+      - values/dragonfly.yaml
       - values/{{ .Environment.Name }}.yaml
     missingFileHandler: Warn
 

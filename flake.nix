@@ -32,76 +32,86 @@
         };
       in
       {
+        packages = {
+          gateway-image = import ./nix/images/gateway.nix { inherit pkgs; };
+          postgres-age-image = import ./nix/images/postgres-age.nix { inherit pkgs; };
+        };
+
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             # Core tools
             git
             beads
-            
+
             # Python tooling
             python313
             uv
             ruff
             basedpyright
-            
+
             # Pre-commit & tasks
             lefthook
             go-task
-            
+
             # Infrastructure
             opentofu
             kubectl
             kubernetes-helm
             helmfile
             k3d
-            
+
             # K8s debugging
             k9s
             stern
-            
+
             # Container runtime
             docker
             docker-compose
-            
+
             # Utilities
             jq
             yq-go
             curl
             openssl
-            
+
             # C/C++ libraries for Python native extensions
             stdenv.cc.cc.lib
-            
+
             # Optional (for production)
             # cloudflared
             # postgresql
             # minio-client
           ];
-          
+
           LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
-          
+
           shellHook = ''
             cat <<'EOF'
-🚀 mycontextprotocol dev environment
+ 🚀 mycontextprotocol dev environment
 
 Quick start:
   uv sync               Install Python dependencies
   task --list           Show all available tasks
   task check            Run quality checks (format + lint + typecheck)
   bd ready              Check available issues
-  
+
 Cluster ops:
   task cluster:create   Create local k3d cluster
   task deploy           Deploy services with helmfile
   helmfile sync         Direct helmfile deployment (from infra/k8s/)
-  
+
 Database:
   task db:autogenerate -- "msg"   Generate migration from models
   task db:upgrade                 Apply migrations
-  
+
 Development:
   task dev              Run gateway with hot-reload
   task logs -- <pod>    Stream logs from pods
+
+Build container images:
+  nix build .#gateway-image       Build gateway OCI image
+  nix build .#postgres-age-image  Build PostgreSQL+AGE OCI image
+  docker load < result            Load image into Docker
 EOF
           '';
         };
