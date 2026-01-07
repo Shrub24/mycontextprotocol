@@ -2,7 +2,6 @@ replicas: 1
 
 image:
   repository: docker.dragonflydb.io/dragonflydb/dragonfly
-  tag: latest
 
 resources:
   requests:
@@ -12,11 +11,5 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-storage:
-  enabled: false
-
 authentication:
   passwordSecret: dragonfly-password
-
-serviceMonitor:
-  enabled: false

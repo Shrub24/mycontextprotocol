@@ -1,0 +1,54 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/hkuds/lightrag
+
+updateStrategy:
+  type: Recreate
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+persistence:
+  enabled: true
+  ragStorage:
+    size: 20Gi
+  inputs:
+    size: 10Gi
+
+envFrom:
+  configmaps: []
+  secrets:
+    - name: lightrag-secrets
+
+env:
+  HOST: 0.0.0.0
+  PORT: 9621
+  WEBUI_TITLE: mycontextprotocol Graph RAG
+  WEBUI_DESCRIPTION: LightRAG Knowledge Graph with PostgreSQL+AGE
+  
+  LLM_BINDING: openai
+  LLM_MODEL: gpt-4o-mini
+  # TODO: LLM_BINDING_API_KEY must be set via lightrag-secrets
+  
+  EMBEDDING_BINDING: openai
+  EMBEDDING_MODEL: text-embedding-3-small
+  EMBEDDING_DIM: 1536
+  # TODO: EMBEDDING_BINDING_API_KEY must be set via lightrag-secrets
+  
+  LIGHTRAG_KV_STORAGE: PGKVStorage
+  LIGHTRAG_VECTOR_STORAGE: PGVectorStorage
+  LIGHTRAG_GRAPH_STORAGE: PGGraphStorage
+  LIGHTRAG_DOC_STATUS_STORAGE: PGDocStatusStorage
+  
+  POSTGRES_HOST: postgresql-cluster-rw.database.svc.cluster.local
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: app
+  POSTGRES_DATABASE: lightrag
+  POSTGRES_WORKSPACE: default
+  # TODO: POSTGRES_PASSWORD must be set via lightrag-secrets

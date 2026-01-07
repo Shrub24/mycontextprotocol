@@ -4,8 +4,11 @@ Manages full documents with semantic search.
 Uses PostgreSQL + pgvector backend.
 """
 
+from typing import Any
+
 from llama_index.core import VectorStoreIndex, StorageContext
 from llama_index.vector_stores.postgres import PGVectorStore
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -17,7 +20,6 @@ class LlamaIndexSettings(BaseSettings):
     postgres_database: str = "llamaindex"
     postgres_user: str = "app"
     postgres_password: str
-
     openai_api_key: str
 
     model_config = {"env_prefix": "LLAMAINDEX_"}
@@ -33,12 +35,12 @@ def create_vector_store() -> PGVectorStore:
 
     return PGVectorStore.from_params(
         host=settings.postgres_host,
-        port=settings.postgres_port,
+        port=str(settings.postgres_port),
         database=settings.postgres_database,
         user=settings.postgres_user,
         password=settings.postgres_password,
         table_name="llamaindex_vectors",
-        embed_dim=1536,  # OpenAI ada-002
+        embed_dim=1536,
     )
 
 
@@ -57,7 +59,7 @@ def create_index() -> VectorStoreIndex:
     )
 
 
-async def query_documents(query: str, limit: int = 10) -> list[dict]:
+async def query_documents(query: str, limit: int = 10) -> list[dict[str, Any]]:
     """Query documents using semantic search.
 
     Args:
@@ -75,7 +77,6 @@ async def query_documents(query: str, limit: int = 10) -> list[dict]:
 
     response = query_engine.query(query)
 
-    # Format results
     results = []
     for node in response.source_nodes:
         results.append(

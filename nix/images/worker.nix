@@ -13,9 +13,6 @@ let
       mkdir -p $out/lib/mycontextprotocol
       cp -r src/mycontextprotocol/* $out/lib/mycontextprotocol/
 
-      mkdir -p $out/lib/alembic
-      cp -r alembic/* $out/lib/alembic/
-
       mkdir -p $out/lib
       cp pyproject.toml $out/lib/
       cp uv.lock $out/lib/
@@ -24,7 +21,7 @@ let
 in
 pkgs.dockerTools.buildLayeredImage {
   name = "ghcr.io/shrub24/mycontextprotocol";
-  tag = "gateway-latest";
+  tag = "worker-latest";
 
   contents = [
     python
@@ -38,14 +35,10 @@ pkgs.dockerTools.buildLayeredImage {
     Cmd = [
       "/bin/bash"
       "-c"
-      "cd /app/lib && pip install --no-cache-dir -e . && cd /app && python -m uvicorn mycontextprotocol.gateway:app --host 0.0.0.0 --port 8000"
+      "cd /app/lib && pip install --no-cache-dir -e . && cd /app && python -m mycontextprotocol.worker"
     ];
 
     WorkingDir = "/app";
-
-    ExposedPorts = {
-      "8000/tcp" = { };
-    };
 
     Env = [
       "PYTHONUNBUFFERED=1"

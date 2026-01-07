@@ -94,6 +94,7 @@ Follow CODE_STYLE.md:
 - Check types: `basedpyright <file>`
 - Check style: `ruff check <file>`
 - Test manually if no automated tests exist yet
+- For IO models: Verify Field() annotations with descriptions are present
 
 ### 6. Complete
 ```bash
@@ -164,6 +165,83 @@ background_output(task_id="task_abc123")
 # Before final answer, always cancel remaining tasks:
 background_cancel(all=true)
 ```
+
+## Pattern Consistency
+
+**Core principle:** Always follow existing patterns unless explicitly changing them. Consistency matters more than personal preference.
+
+### Detecting Pattern Inconsistencies
+
+When working on a file or module, actively look for:
+- **Naming conventions** - Do functions use `get_x()` or `fetch_x()`? Stick with what exists.
+- **Import organization** - Grouped by stdlib/third-party/local? Alphabetized? Match it.
+- **Error handling** - Does code raise exceptions or return `None`? Be consistent.
+- **Type annotations** - Are they present? Use the same style (PEP 695 vs old-style).
+- **Docstring style** - Google style? NumPy style? Match what's there.
+- **Configuration patterns** - Environment variables? Pydantic Settings? BaseModel? Follow existing.
+
+### When Patterns Conflict
+
+**If you find multiple conflicting patterns in the codebase:**
+
+1. **First, verify it's actually inconsistent:**
+   - Different patterns may serve different purposes (intentional design)
+   - Migration might be in progress (old code vs new code)
+   - You might be comparing unrelated subsystems
+
+2. **If genuinely inconsistent, assess relevance and impact:**
+   - **Minor/cosmetic inconsistency (2-3 occurrences)** → Infer the "winning" pattern:
+     - Most recent code (check git blame if needed)
+     - Pattern that matches CODE_STYLE.md
+     - Pattern used in related/surrounding code
+   - **Significant inconsistency OR affects correctness/maintainability** → **FLAG AND STOP**
+   - Use judgment: cosmetic issues (proceed), architectural issues (stop)
+
+3. **Document your reasoning:**
+   ```
+   PATTERN INCONSISTENCY DETECTED: Error handling in services/
+   
+   Pattern A (3 files): Raise HTTPException directly
+   Pattern B (2 files): Return dict with {"error": ...}
+   Pattern C (1 file): Custom exception classes
+   
+   Recommendation: Pattern A (most common, matches FastAPI conventions)
+   
+   Proceeding with Pattern A unless you prefer differently?
+   ```
+
+### When Changing Patterns
+
+**Never change existing patterns without explicit user approval.**
+
+If you believe a pattern should change:
+1. **Stop** - Don't make the change yet
+2. **Document** the current pattern and why it's problematic
+3. **Propose** the new pattern with concrete benefits
+4. **Ask** user for approval before proceeding
+
+Example:
+```
+Current pattern uses `as any` type suppressions in 5 places.
+This violates CODE_STYLE.md and hides type errors.
+
+Proposed: Properly type these with Protocol or TypedDict.
+Effort: ~30 minutes to fix all occurrences.
+
+Should I refactor these or work around them for now?
+```
+
+### Pattern Consistency Checklist
+
+Before committing code, verify:
+- [ ] Naming matches surrounding code
+- [ ] Import style matches file conventions
+- [ ] Error handling matches module patterns
+- [ ] Type annotations match codebase style
+- [ ] Docstrings match existing format
+- [ ] No arbitrary pattern changes introduced
+
+**Remember:** Consistency > "better" way. Follow what exists unless user approves change.
 
 ## Decision Points
 
@@ -467,6 +545,37 @@ docker buildx build \
 ```
 
 ## Code Quality
+
+### Pydantic Models for IO
+
+**API request/response models need proper Field() annotations:**
+
+```python
+# ✅ Good - IO model with schema documentation
+class QueryRequest(BaseModel):
+    """Semantic search query for document store."""
+    
+    query: str = Field(..., description="Natural language search query")
+    user_id: str = Field(..., description="User identifier")
+    limit: int = Field(10, description="Max results", ge=1, le=100)
+
+# ❌ Bad - missing Field() annotations
+class QueryRequest(BaseModel):
+    query: str
+    user_id: str
+    limit: int = 10
+```
+
+**Why this matters:**
+- Field descriptions become OpenAPI schema documentation
+- Agents/LLMs use this to understand how to call the API
+- Validation constraints (ge, le, min_length) enforce correctness at boundaries
+
+**Rules:**
+- **Always** add Field() with descriptions for API models (request/response)
+- **Always** add model docstring (one line describing purpose)
+- **Optional** for internal data structures (TypedDict, etc.)
+- Only default if field has sensible default that works for most cases
 
 ### Development Workflow
 

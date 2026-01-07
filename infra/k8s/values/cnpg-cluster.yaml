@@ -33,9 +33,3 @@ cluster:
     limits:
       memory: "2Gi"
       cpu: "1000m"
-  
-  monitoring:
-    enabled: false
-  
-  backup:
-    enabled: false

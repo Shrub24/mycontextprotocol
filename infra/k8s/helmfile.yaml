@@ -35,14 +35,7 @@ environments:
       - values/production.yaml
 ---
 helmDefaults:
-  # Wait for deployment completion before returning
-  wait: true
-  # Timeout for each release deployment
   timeout: 600
-  # Don't recreate pods on release upgrade
-  recreatePods: false
-  # Don't force recreate releases
-  force: false
 
 
 releases:
@@ -114,5 +107,21 @@ releases:
     createNamespace: true
     values:
       - values/common.yaml
+      - values/{{ .Environment.Name }}.yaml
+    missingFileHandler: Warn
+
+  # ============================================================================
+  # LightRAG
+  # ============================================================================
+  # Graph RAG engine with PostgreSQL+AGE backend
+  # Provides entity extraction and relationship queries (Tier 3: RELATIONAL)
+  - name: lightrag
+    namespace: lightrag
+    chart: /tmp/lightrag-repo/k8s-deploy/lightrag
+    createNamespace: true
+    needs:
+      - database/postgresql-cluster
+    values:
+      - values/lightrag.yaml
       - values/{{ .Environment.Name }}.yaml
     missingFileHandler: Warn

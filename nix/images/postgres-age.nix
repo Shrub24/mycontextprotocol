@@ -3,7 +3,7 @@ let
   postgres = pkgs.postgresql_16;
 in
 pkgs.dockerTools.buildLayeredImage {
-  name = "ghcr.io/code-yeongyu/mycontextprotocol";
+  name = "ghcr.io/shrub24/mycontextprotocol";
   tag = "postgres-age-latest";
 
   contents = [

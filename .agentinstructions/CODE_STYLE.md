@@ -110,24 +110,52 @@ def process_memory(req: InboxRequest) -> dict:
 - **Be explicit:** `get_user_by_id()` not `get_user()`
 
 ### Comments & Docstrings
-**Prefer clear code over comments.** Only document:
-- Public APIs (brief docstrings)
-- Non-obvious "why" (not "what")
-- Complex algorithms
+
+**Minimal commenting philosophy:**
+- Code should be self-documenting through clear names and structure
+- Only comment when information CANNOT be expressed in code
+- Prefer language-standard docstrings over inline comments
+- No markdown-style formatting in code comments (no headers, bullets, etc.)
+
+**When to comment:**
+- ✅ Public API docstrings (standard format for language)
+- ✅ Non-obvious "why" that affects correctness
+- ✅ Complex algorithms (performance tricks, mathematical formulas)
+- ✅ Security-sensitive code (explain threat model)
+- ✅ Workarounds for external bugs (link to issue tracker)
+
+**When NOT to comment:**
+- ❌ Describing what code does (code should be obvious)
+- ❌ Section dividers in normal code files (use modules/functions instead)
+- ❌ Structured markdown-style comments (no headers, lists)
+- ❌ Default values or placeholder configs (use TODO or searchable syntax)
 
 ```python
-# ✅ Good - documents "why"
+# ✅ Good - explains non-obvious "why"
 def retry_with_backoff(func, max_attempts: int = 3) -> Any:
     """Retry with exponential backoff for transient failures."""
+    # Use exponential backoff to avoid thundering herd on service recovery
     ...
 
-# ❌ Bad - restates the obvious
+# ❌ Bad - restates what code does
 def get_memory(id: str) -> Memory:
-    """Gets a memory by ID."""  # Don't do this
+    """Gets a memory by ID."""  # Obvious from function name
+    ...
+
+# ❌ Bad - markdown-style section divider
+# ============================================================
+# Memory Management Functions
+# ============================================================
+def get_memory(id: str) -> Memory:
+    ...
+
+# ✅ Good - use module structure instead
+# File: memory/retrieval.py (separation via filesystem)
+def get_memory(id: str) -> Memory:
     ...
 ```
 
-**Docstring format:** Google style, minimal:
+**Docstring format:** Language-standard only (Google style for Python), minimal:
 ```python
 def embed_document(content: str, model: str = "text-embedding-3-small") -> list[float]:
     """Generate embeddings for document content.
@@ -141,12 +169,136 @@ def embed_document(content: str, model: str = "text-embedding-3-small") -> list[
     """
 ```
 
+**Exceptions for structured comments:**
+- Dockerfiles: Stage comments like `# Build stage` / `# Runtime stage` are idiomatic
+- Long files: Major section dividers for clarity (use sparingly, only when truly needed)
+- YAML/Helm: Infrastructure comments explaining purpose (matches K8s conventions)
+
+### Configuration & Placeholders
+
+**Required configuration values:**
+```python
+# ❌ Bad - arbitrary placeholder
+database_url = "postgresql://localhost/db"
+
+# ❌ Bad - generic placeholder without context
+api_key = "your-api-key-here"
+
+# ✅ Good - no default, required from env
+class Config(BaseSettings):
+    postgres_host: str
+    postgres_password: str
+    openai_api_key: str
+
+# ✅ Good - TODO for required secret
+# In YAML:
+# TODO: OPENAI_API_KEY must be set via secrets
+```
+
+**Optional parameters:**
+```yaml
+# YAML/Helm values - only set if we need to configure it
+# ❌ Bad - duplicating chart default
+service:
+  type: ClusterIP  # Chart already defaults to this
+  port: 8080       # Chart already defaults to this
+
+# ✅ Good - we need to configure these
+replicas: 3  # Will vary by environment (local=1, prod=3+)
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+```
+
+```python
+# Pydantic Settings - set our internal defaults
+# ✅ Good - our infrastructure config
+class Mem0Settings(BaseSettings):
+    postgres_host: str = "postgresql-cluster-rw.database.svc.cluster.local"
+    postgres_port: int = 5432
+    postgres_database: str = "mem0"
+    postgres_password: str  # No default - required secret
+
+# Pydantic IO models - default only if sensible
+# ✅ Good - no default for strictly required fields
+class QueryRequest(BaseModel):
+    query: str = Field(..., description="Search query")  # Required
+    user_id: str = Field(..., description="User ID")     # Required
+
+# ✅ Good - default for fields with sensible defaults
+class QueryRequest(BaseModel):
+    query: str = Field(...)
+    limit: int = Field(10, description="Max results", ge=1, le=100)  # Sensible default
+    mode: Literal["fast", "accurate"] = Field("fast")  # Sensible default
+```
+
+**Rule:**
+- **YAML values**: Only set if we need to configure/tune it (replicas, resources, custom settings)
+- **Pydantic Settings**: Set our internal defaults (infra hostnames, ports, databases)
+- **Pydantic IO models**: Only default if field has a sensible default that works for most cases
+
+### Validation
+
+**Pydantic models for IO - add Field() annotations with descriptions:**
+
+Models used for API request/response (especially agentic IO) need proper schema documentation:
+
+```python
+# ✅ Good - IO model with Field() annotations
+class QueryRequest(BaseModel):
+    """Semantic search query for document store."""
+    
+    query: str = Field(..., description="Natural language search query")
+    user_id: str = Field(..., description="User identifier")
+    limit: int = Field(10, description="Max results", ge=1, le=100)
+    mode: Literal["fast", "accurate"] = Field("fast", description="Search mode")
+
+# ❌ Bad - no Field() annotations, no descriptions
+class QueryRequest(BaseModel):
+    query: str
+    user_id: str
+    limit: int = 10
+    mode: Literal["fast", "accurate"] = "fast"
+```
+
+**Model docstrings for IO models:**
+- Add class docstrings for all API request/response models
+- These become part of OpenAPI schema for agents/LLMs
+- Keep brief - one line describing the model's purpose
+
+**Internal models can skip Field() if obvious:**
+```python
+# Internal data structures - Field() optional
+class Memory(TypedDict):
+    id: str
+    content: str
+    source: str
+```
+
+**Use YAML/JSON schemas where available:**
+- Check for official schemas first (CRDs, OpenAPI specs, etc.)
+- If no official schema exists, document this and create custom validation
+
+```python
+# For Kubernetes manifests - use kubectl validation or official CRD schemas
+
+# For custom configs - use Pydantic
+from pydantic import BaseModel, Field
+
+class DatabaseConfig(BaseModel):
+    host: str = Field(..., description="PostgreSQL host")
+    port: int = Field(5432, ge=1, le=65535)
+    database: str = Field(..., min_length=1)
+```
+
 ### Principles
 - **YAGNI:** Don't add features until needed
 - **DRY:** Extract repeated logic to functions/modules
-- **No magic numbers:** Use named constants (except in tests/placeholders)
+- **No magic numbers:** Use named constants (no arbitrary literals)
 - **Explicit over implicit:** `return None` not just `return`
 - **One responsibility:** Functions do one thing
+- **Follow existing patterns:** Consistency over personal preference (see DEVELOPMENT.md)
 
 ## YAML
 
@@ -174,13 +326,20 @@ Use `yamllint` (config in `.yamllint`). Key rules:
 - Consistent indentation
 - Line length 120 chars
 
-### Secrets
-**Never commit secrets.** Use placeholders:
+### Secrets & Required Values
+**Never commit secrets.** Use environment variable references or TODO tags:
 ```yaml
-# ✅ Good - reference
+# ✅ Good - environment variable reference
 password: ${POSTGRES_PASSWORD}
 
-# ❌ Bad - literal
+# ✅ Good - TODO tag (searchable)
+# TODO: Set password via secret
+password: ""
+
+# ❌ Bad - arbitrary placeholder
+password: "changeme"
+
+# ❌ Bad - fake/example secret
 password: "super-secret-123"
 ```
 

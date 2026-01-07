@@ -34,6 +34,7 @@
       {
         packages = {
           gateway-image = import ./nix/images/gateway.nix { inherit pkgs; };
+          worker-image = import ./nix/images/worker.nix { inherit pkgs; };
           postgres-age-image = import ./nix/images/postgres-age.nix { inherit pkgs; };
         };
 
@@ -108,10 +109,11 @@ Development:
   task dev              Run gateway with hot-reload
   task logs -- <pod>    Stream logs from pods
 
-Build container images:
-  nix build .#gateway-image       Build gateway OCI image
-  nix build .#postgres-age-image  Build PostgreSQL+AGE OCI image
-  docker load < result            Load image into Docker
+ Build container images:
+   nix build .#gateway-image       Build gateway OCI image
+   nix build .#worker-image        Build worker OCI image
+   nix build .#postgres-age-image  Build PostgreSQL+AGE OCI image
+   docker load < result            Load image into Docker
 EOF
           '';
         };

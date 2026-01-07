@@ -7,9 +7,10 @@ Provides REST API endpoints for:
 - /ingest - Document ingestion to memory stores
 """
 
+from typing import Literal, Any
+
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Literal
+from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="mycontextprotocol",
@@ -18,52 +19,80 @@ app = FastAPI(
 )
 
 
-# Request/Response Models
 class StateRequest(BaseModel):
-    user_id: str
-    session_id: str | None = None
+    """Request user state from Mem0."""
+
+    user_id: str = Field(..., description="User identifier for memory lookup")
+    session_id: str | None = Field(
+        None, description="Optional session identifier for context scoping"
+    )
 
 
 class StateResponse(BaseModel):
-    user_id: str
-    memories: list[dict]
-    context: str
+    """User state from Mem0 with formatted context."""
+
+    user_id: str = Field(..., description="User identifier")
+    memories: list[dict[str, Any]] = Field(..., description="Raw memory objects from Mem0")
+    context: str = Field(..., description="Formatted context string for LLM injection")
 
 
 class DocumentQueryRequest(BaseModel):
-    query: str
-    limit: int = 10
+    """Semantic search query for LlamaIndex document store."""
+
+    query: str = Field(..., description="Natural language search query")
+    limit: int = Field(10, description="Maximum number of results to return", ge=1, le=100)
 
 
 class DocumentQueryResponse(BaseModel):
-    results: list[dict]
-    query_time_ms: float
-    store: Literal["llamaindex"] = "llamaindex"
+    """Results from LlamaIndex semantic search."""
+
+    results: list[dict[str, Any]] = Field(
+        ..., description="Matching documents with scores and metadata"
+    )
+    query_time_ms: float = Field(..., description="Query execution time in milliseconds")
+    store: Literal["llamaindex"] = Field("llamaindex", description="Source store identifier")
 
 
 class GraphQueryRequest(BaseModel):
-    query: str
-    mode: Literal["local", "global", "hybrid", "naive"] = "hybrid"
-    limit: int = 10
+    """Knowledge graph query for LightRAG."""
+
+    query: str = Field(..., description="Natural language query for graph traversal")
+    mode: Literal["local", "global", "hybrid", "naive"] = Field(
+        "hybrid",
+        description="Query mode: local (entity-focused), global (relationship-focused), hybrid (combined), naive (keyword)",
+    )
+    limit: int = Field(10, description="Maximum number of results to return", ge=1, le=100)
 
 
 class GraphQueryResponse(BaseModel):
-    results: list[dict]
-    query_time_ms: float
-    store: Literal["lightrag"] = "lightrag"
-    mode_used: str
+    """Results from LightRAG graph query."""
+
+    results: list[dict[str, Any]] = Field(
+        ..., description="Graph query results with entities and relationships"
+    )
+    query_time_ms: float = Field(..., description="Query execution time in milliseconds")
+    store: Literal["lightrag"] = Field("lightrag", description="Source store identifier")
+    mode_used: str = Field(..., description="Query mode that was executed")
 
 
 class IngestRequest(BaseModel):
-    content: str
-    metadata: dict | None = None
-    stores: list[Literal["llamaindex", "lightrag"]] = ["llamaindex", "lightrag"]
+    """Request to ingest content into memory stores."""
+
+    content: str = Field(..., description="Document content to ingest")
+    metadata: dict[str, Any] | None = Field(
+        None, description="Optional metadata tags for the document"
+    )
+    stores: list[Literal["llamaindex", "lightrag"]] = Field(
+        ["llamaindex", "lightrag"], description="Target stores for ingestion (default: both)"
+    )
 
 
 class IngestResponse(BaseModel):
-    status: str
-    document_id: str
-    stores_updated: list[str]
+    """Result of content ingestion."""
+
+    status: str = Field(..., description="Ingestion status: queued, processing, completed, failed")
+    document_id: str = Field(..., description="Unique identifier for the ingested document")
+    stores_updated: list[str] = Field(..., description="Stores that received the content")
 
 
 # Health check

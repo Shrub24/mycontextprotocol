@@ -4,7 +4,10 @@ Manages subjective user facts and preferences.
 Uses CloudNativePG as backend store.
 """
 
+from typing import Any
+
 from mem0 import Memory
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -44,7 +47,7 @@ def create_mem0_client() -> Memory:
     return Memory.from_config(config)
 
 
-async def get_user_state(user_id: str, session_id: str | None = None) -> dict:
+async def get_user_state(user_id: str, session_id: str | None = None) -> dict[str, Any]:
     """Get user state from Mem0.
 
     Args:
@@ -56,17 +59,18 @@ async def get_user_state(user_id: str, session_id: str | None = None) -> dict:
     """
     client = create_mem0_client()
 
-    # Search user memories
     memories = client.search(
-        query="",  # Empty query gets all memories
+        query="",
         user_id=user_id,
         limit=50,
     )
 
-    # Format as context string
     context_parts = []
     for memory in memories:
-        context_parts.append(f"- {memory['memory']}")
+        if isinstance(memory, dict):
+            memory_text = memory.get("memory", "")
+            if memory_text:
+                context_parts.append(f"- {memory_text}")
 
     context = "\n".join(context_parts) if context_parts else "No user context available."
 
