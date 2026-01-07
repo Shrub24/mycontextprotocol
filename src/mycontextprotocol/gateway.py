@@ -9,8 +9,19 @@ Provides REST API endpoints for:
 
 from typing import Literal, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+
+from mycontextprotocol.config import Settings
+from mycontextprotocol.health import (
+    HealthResponse,
+    check_postgres,
+    check_dragonfly,
+    aggregate_health_status,
+)
+
+settings = Settings()
 
 app = FastAPI(
     title="mycontextprotocol",
@@ -95,11 +106,56 @@ class IngestResponse(BaseModel):
     stores_updated: list[str] = Field(..., description="Stores that received the content")
 
 
-# Health check
-@app.get("/health")
+@app.get("/livez")
+async def liveness():
+    return Response(status_code=200)
+
+
+@app.get("/readyz")
+async def readiness():
+    checks = {}
+
+    postgres_check = await check_postgres(
+        connection_string=settings.postgres_connection_string, timeout=5.0
+    )
+    checks["postgres"] = postgres_check
+
+    dragonfly_check = await check_dragonfly(
+        host=settings.dragonfly_host, port=settings.dragonfly_port, timeout=5.0
+    )
+    checks["dragonfly"] = dragonfly_check
+
+    overall_status = aggregate_health_status(checks)
+
+    if overall_status == "fail":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": overall_status,
+                "checks": {k: v.model_dump() for k, v in checks.items()},
+            },
+        )
+
+    return {"status": overall_status, "checks": {k: v.model_dump() for k, v in checks.items()}}
+
+
+@app.get("/health", response_model=HealthResponse)
 async def health():
-    """Health check endpoint."""
-    return {"status": "ok"}
+    checks = {}
+
+    postgres_check = await check_postgres(
+        connection_string=settings.postgres_connection_string, timeout=5.0
+    )
+    checks["postgres"] = postgres_check
+
+    dragonfly_check = await check_dragonfly(
+        host=settings.dragonfly_host, port=settings.dragonfly_port, timeout=5.0
+    )
+    checks["dragonfly"] = dragonfly_check
+
+    overall_status = aggregate_health_status(checks)
+
+    return HealthResponse(status=overall_status, version="0.1.0", checks=checks)
 
 
 # Tier 1: STATE (Mem0) - Middleware pattern
@@ -110,7 +166,6 @@ async def get_state(request: StateRequest):
     Called automatically by OpenWebUI middleware on most requests.
     Returns subjective user facts for context injection.
     """
-    # TODO: Integrate Mem0 client
     raise HTTPException(status_code=501, detail="Mem0 integration pending")
 
 
@@ -121,7 +176,6 @@ async def query_documents(request: DocumentQueryRequest):
 
     Agent explicitly calls this when it needs document content.
     """
-    # TODO: Integrate LlamaIndex PGVectorStore
     raise HTTPException(status_code=501, detail="LlamaIndex integration pending")
 
 
@@ -132,7 +186,6 @@ async def query_graph(request: GraphQueryRequest):
 
     Agent explicitly calls this when it needs entity relationships.
     """
-    # TODO: Integrate LightRAG client
     raise HTTPException(status_code=501, detail="LightRAG integration pending")
 
 
@@ -143,7 +196,6 @@ async def ingest(request: IngestRequest):
 
     Queues document for processing by Omni-Worker.
     """
-    # TODO: Queue to Dragonfly for worker processing
     raise HTTPException(status_code=501, detail="Ingestion queue pending")
 
 

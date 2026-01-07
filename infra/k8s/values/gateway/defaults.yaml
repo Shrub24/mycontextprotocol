@@ -11,6 +11,22 @@ service:
   port: 80
   targetPort: 8000
 
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: 8000
+  periodSeconds: 30
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8000
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 2
+
 resources:
   requests:
     memory: 256Mi

@@ -11,8 +11,10 @@ spec:
   failedJobsHistoryLimit: {{ .Values.scaledjob.failedJobsHistoryLimit }}
   
   jobTargetRef:
+    activeDeadlineSeconds: 300
     template:
       spec:
+        restartPolicy: OnFailure
         containers:
         - name: worker
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -24,7 +26,6 @@ spec:
               name: worker-secrets
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-        restartPolicy: OnFailure
   
   triggers:
   - type: redis
