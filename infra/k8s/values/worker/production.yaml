@@ -1,0 +1,11 @@
+# Production overrides for Worker
+scaling:
+  maxReplicaCount: 10
+
+resources:
+  requests:
+    memory: 1Gi
+    cpu: 1000m
+  limits:
+    memory: 2Gi
+    cpu: 4000m

@@ -62,3 +62,4 @@ build/
 
 # OpenCode session data (local AI assistant context)
 .opencode/
+.claude/

@@ -1,19 +1,10 @@
-# Helmfile for mycontextprotocol K3s Deployment
-#
-# Manages core infrastructure services:
-# - PostgreSQL 18 with pgvector (database via CloudNativePG)
-# - Dragonfly (Redis-compatible queue + cache)
-# - KEDA (event-driven autoscaling)
-#
-# Environments:
-# - local: k3d development (limited resources)
-# - production: Oracle Cloud (4 OCPU, 24GB RAM)
-#
-# Usage:
-#   helmfile -e local sync       # Deploy to local
-#   helmfile -e production sync  # Deploy to production
-#   helmfile diff                # Preview changes
-#   helmfile destroy             # Remove all releases
+bases:
+  - bases/environments.yaml
+
+helmDefaults:
+  timeout: 600
+  wait: true
+  createNamespace: true
 
 repositories:
   - name: bitnami
@@ -25,103 +16,65 @@ repositories:
   - name: dragonfly
     url: https://dragonflydb.github.io/dragonfly-operator
 
----
-environments:
-  local:
-    values:
-      - values/local.yaml
-  production:
-    values:
-      - values/production.yaml
----
-helmDefaults:
-  timeout: 600
-
-
 releases:
-  # ============================================================================
-  # CloudNativePG Operator
-  # ============================================================================
-  # Declarative PostgreSQL cluster management with automatic failover
-  # Handles backup/restore and cluster lifecycle
   - name: cnpg-operator
     namespace: cnpg-system
     chart: cnpg/cloudnative-pg
-    createNamespace: true
-    values:
-      - values/common.yaml
-      - values/{{ .Environment.Name }}.yaml
-    missingFileHandler: Warn
 
-  # ============================================================================
-  # PostgreSQL Cluster (CloudNativePG)
-  # ============================================================================
-  # Primary data store with pgvector extension
-  # Managed by CloudNativePG operator
-  - name: postgresql-cluster
+  - name: cnpg-cluster
     namespace: database
     chart: cnpg/cluster
-    createNamespace: true
     needs:
       - cnpg-system/cnpg-operator
     values:
-      - values/cnpg-cluster.yaml
-      - values/{{ .Environment.Name }}.yaml
-    missingFileHandler: Warn
+      - values/cnpg-cluster/defaults.yaml
+      - values/cnpg-cluster/{{ .Environment.Name }}.yaml
 
-  # ============================================================================
-  # Dragonfly
-  # ============================================================================
-  # Redis-compatible in-memory store for queues and caching
-  # Used for task queue and future context caching
   - name: dragonfly-operator
     namespace: dragonfly-system
     chart: dragonfly/dragonfly-operator
     version: v1.1.8
-    createNamespace: true
-    values:
-      - values/common.yaml
-      - values/{{ .Environment.Name }}.yaml
-    missingFileHandler: Warn
 
   - name: dragonfly
     namespace: queue
     chart: dragonfly/dragonfly
     version: v1.1.8
-    createNamespace: true
     needs:
       - dragonfly-system/dragonfly-operator
     values:
-      - values/dragonfly.yaml
-      - values/{{ .Environment.Name }}.yaml
-    missingFileHandler: Warn
+      - values/dragonfly/defaults.yaml
+      - values/dragonfly/{{ .Environment.Name }}.yaml
 
-  # ============================================================================
-  # KEDA
-  # ============================================================================
-  # Event-driven autoscaling for Kubernetes workloads
-  # Scales workers based on Dragonfly queue depth or cron schedules
   - name: keda
     namespace: keda
     chart: kedacore/keda
-    createNamespace: true
-    values:
-      - values/common.yaml
-      - values/{{ .Environment.Name }}.yaml
-    missingFileHandler: Warn
 
-  # ============================================================================
-  # LightRAG
-  # ============================================================================
-  # Graph RAG engine with PostgreSQL+AGE backend
-  # Provides entity extraction and relationship queries (Tier 3: RELATIONAL)
   - name: lightrag
     namespace: lightrag
     chart: /tmp/lightrag-repo/k8s-deploy/lightrag
-    createNamespace: true
     needs:
-      - database/postgresql-cluster
+      - database/cnpg-cluster
     values:
-      - values/lightrag.yaml
-      - values/{{ .Environment.Name }}.yaml
-    missingFileHandler: Warn
+      - values/lightrag/defaults.yaml
+      - values/lightrag/{{ .Environment.Name }}.yaml
+
+  - name: gateway
+    namespace: mycontextprotocol
+    chart: ./charts/gateway
+    needs:
+      - database/cnpg-cluster
+      - queue/dragonfly
+    values:
+      - values/gateway/defaults.yaml
+      - values/gateway/{{ .Environment.Name }}.yaml
+
+  - name: worker
+    namespace: mycontextprotocol
+    chart: ./charts/worker
+    needs:
+      - database/cnpg-cluster
+      - queue/dragonfly
+      - keda/keda
+    values:
+      - values/worker/defaults.yaml
+      - values/worker/{{ .Environment.Name }}.yaml

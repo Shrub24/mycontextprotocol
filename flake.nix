@@ -2,121 +2,84 @@
   description = "mycontextprotocol development environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    uv2nix.url = "github:pyproject-nix/uv2nix";
-    uv2nix.inputs.nixpkgs.follows = "nixpkgs";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    
+    pyproject-nix = {
+      url = "github:pyproject-nix/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    
+    uv2nix = {
+      url = "github:pyproject-nix/uv2nix";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+      inputs.uv2nix.follows = "uv2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, uv2nix }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-        
-        beads = pkgs.stdenv.mkDerivation rec {
-          pname = "beads";
-          version = "0.44.0";
-          
-          src = pkgs.fetchurl {
-            url = "https://github.com/steveyegge/beads/releases/download/v${version}/beads_${version}_linux_amd64.tar.gz";
-            sha256 = "c3881191cb20dfc7089d7966856e9c19cb09c1c92e7c8496eec71dfd0f5ef551";
+  outputs = { self, nixpkgs, pyproject-nix, uv2nix, pyproject-build-systems }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
+    in
+    {
+      packages = forAllSystems (system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        {
+          gateway-image = pkgs.callPackage ./nix/images/gateway.nix {
+            inherit pkgs pyproject-nix uv2nix pyproject-build-systems;
           };
-          
-          sourceRoot = ".";
-          
-          installPhase = ''
-            mkdir -p $out/bin
-            cp bd $out/bin/bd
-            chmod +x $out/bin/bd
-          '';
-        };
-      in
-      {
-        packages = {
-          gateway-image = import ./nix/images/gateway.nix { inherit pkgs; };
-          worker-image = import ./nix/images/worker.nix { inherit pkgs; };
-          postgres-age-image = import ./nix/images/postgres-age.nix { inherit pkgs; };
-        };
+          worker-image = pkgs.callPackage ./nix/images/worker.nix {
+            inherit pkgs pyproject-nix uv2nix pyproject-build-systems;
+          };
+          postgres-age-image = pkgs.callPackage ./nix/images/postgres-age.nix {
+            inherit pkgs;
+          };
+        }
+      );
 
-        devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
-            # Core tools
-            git
-            beads
+      devShells = forAllSystems (system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        {
+          default = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              python313
+              uv
+              ruff
+              basedpyright
 
-            # Python tooling
-            python313
-            uv
-            ruff
-            basedpyright
+              kubectl
+              kubernetes-helm
+              helmfile
+              k3d
+              k9s
+              stern
 
-            # Pre-commit & tasks
-            lefthook
-            go-task
+              docker
+              go-task
+              lefthook
+              opentofu
+            ];
 
-            # Infrastructure
-            opentofu
-            kubectl
-            kubernetes-helm
-            helmfile
-            k3d
-
-            # K8s debugging
-            k9s
-            stern
-
-            # Container runtime
-            docker
-            docker-compose
-
-            # Utilities
-            jq
-            yq-go
-            curl
-            openssl
-
-            # C/C++ libraries for Python native extensions
-            stdenv.cc.cc.lib
-
-            # Optional (for production)
-            # cloudflared
-            # postgresql
-            # minio-client
-          ];
-
-          LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
-
-          shellHook = ''
-            cat <<'EOF'
- 🚀 mycontextprotocol dev environment
-
-Quick start:
-  uv sync               Install Python dependencies
-  task --list           Show all available tasks
-  task check            Run quality checks (format + lint + typecheck)
-  bd ready              Check available issues
-
-Cluster ops:
-  task cluster:create   Create local k3d cluster
-  task deploy           Deploy services with helmfile
-  helmfile sync         Direct helmfile deployment (from infra/k8s/)
-
-Database:
-  task db:autogenerate -- "msg"   Generate migration from models
-  task db:upgrade                 Apply migrations
-
-Development:
-  task dev              Run gateway with hot-reload
-  task logs -- <pod>    Stream logs from pods
-
- Build container images:
-   nix build .#gateway-image       Build gateway OCI image
-   nix build .#worker-image        Build worker OCI image
-   nix build .#postgres-age-image  Build PostgreSQL+AGE OCI image
-   docker load < result            Load image into Docker
-EOF
-          '';
-        };
-      }
-    );
+            shellHook = ''
+              export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
+              echo "mycontextprotocol dev environment loaded"
+              echo "- Python: $(python --version)"
+              echo "- UV: $(uv --version)"
+              echo "- Kubectl: $(kubectl version --client --short 2>/dev/null || echo 'not connected')"
+            '';
+          };
+        }
+      );
+    };
 }

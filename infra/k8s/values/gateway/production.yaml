@@ -1,0 +1,10 @@
+# Production overrides for Gateway
+replicaCount: 2
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 500m
+  limits:
+    memory: 1Gi
+    cpu: 2000m

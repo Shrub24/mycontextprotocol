@@ -1,0 +1,14 @@
+# Production overrides for LightRAG
+resources:
+  requests:
+    memory: 2Gi
+    cpu: 1000m
+  limits:
+    memory: 4Gi
+    cpu: 2000m
+
+persistence:
+  data:
+    size: 20Gi
+  cache:
+    size: 10Gi

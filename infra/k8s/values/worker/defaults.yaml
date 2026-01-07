@@ -1,0 +1,19 @@
+# Worker default configuration
+image:
+  repository: ghcr.io/shrub24/mycontextprotocol
+  tag: worker-latest
+  pullPolicy: IfNotPresent
+
+scaling:
+  minReplicaCount: 0
+  maxReplicaCount: 10
+  pollingInterval: 30
+  queueLength: 5
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 500m
+  limits:
+    memory: 1Gi
+    cpu: 2000m

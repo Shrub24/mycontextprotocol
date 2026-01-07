@@ -1,0 +1,12 @@
+# Production overrides for PostgreSQL cluster
+cluster:
+  instances: 1
+  storage:
+    size: 20Gi
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 2000m

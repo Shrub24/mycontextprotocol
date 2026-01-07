@@ -1,51 +1,27 @@
 { pkgs }:
+
 let
-  postgres = pkgs.postgresql_16;
+  postgresql = pkgs.postgresql_17.withPackages (p: [
+    p.age
+    p.pgvector
+  ]);
 in
-pkgs.dockerTools.buildLayeredImage {
+pkgs.dockerTools.streamLayeredImage {
   name = "ghcr.io/shrub24/mycontextprotocol";
   tag = "postgres-age-latest";
 
-  contents = [
-    postgres
-    postgres.pkgs.age
-  ];
+  contents = [ postgresql pkgs.bash pkgs.coreutils ];
 
   config = {
-    Cmd = [
-      "${postgres}/bin/postgres"
-      "-D"
-      "/var/lib/postgresql/data"
-      "-c"
-      "shared_preload_libraries=age"
-      "-c"
-      "max_connections=200"
-      "-c"
-      "shared_buffers=256MB"
-      "-c"
-      "work_mem=4MB"
-      "-c"
-      "maintenance_work_mem=64MB"
-      "-c"
-      "effective_cache_size=1GB"
-      "-c"
-      "checkpoint_completion_target=0.9"
-      "-c"
-      "wal_buffers=16MB"
-    ];
-
+    Cmd = [ "${postgresql}/bin/postgres" ];
+    
     ExposedPorts = {
       "5432/tcp" = { };
     };
-
+    
     Env = [
+      "PATH=${postgresql}/bin:/bin"
       "PGDATA=/var/lib/postgresql/data"
-      "POSTGRES_USER=postgres"
-      "POSTGRES_DB=postgres"
     ];
-
-    Volumes = {
-      "/var/lib/postgresql/data" = { };
-    };
   };
 }

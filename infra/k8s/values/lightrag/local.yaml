@@ -1,0 +1,14 @@
+# Local development overrides for LightRAG
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 1Gi
+    cpu: 500m
+
+persistence:
+  data:
+    size: 5Gi
+  cache:
+    size: 2Gi

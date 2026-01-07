@@ -1,0 +1,35 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: worker
+  namespace: mycontextprotocol
+spec:
+  minReplicaCount: {{ .Values.scaledjob.minReplicaCount }}
+  maxReplicaCount: {{ .Values.scaledjob.maxReplicaCount }}
+  pollingInterval: {{ .Values.scaledjob.pollingInterval }}
+  successfulJobsHistoryLimit: {{ .Values.scaledjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.scaledjob.failedJobsHistoryLimit }}
+  
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+          - configMapRef:
+              name: worker-config
+          - secretRef:
+              name: worker-secrets
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        restartPolicy: OnFailure
+  
+  triggers:
+  - type: redis
+    metadata:
+      addressFromEnv: DRAGONFLY_HOST
+      passwordFromEnv: DRAGONFLY_PASSWORD
+      listName: {{ .Values.config.dragonfly.queueName }}
+      listLength: "1"
