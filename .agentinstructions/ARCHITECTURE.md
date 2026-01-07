@@ -10,6 +10,7 @@
 The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: users own their infrastructure, can deploy anywhere, and benefit from both vector-based semantic search and AI-extracted knowledge graphs.
 
 **Key Capabilities:**
+
 - **Unified Memory Ingestion** - Capture information from multiple sources with intelligent extraction
 - **Subjective/Objective Split** - Separate user preferences (Mem0) from factual knowledge (LlamaIndex)
 - **State vs Tools Pattern** - Context automatically injected (State), knowledge retrieved on-demand (Tools)
@@ -28,6 +29,7 @@ The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: use
 **Goal**: Reusable product with its own Helm Chart that multiple agents (Laptop, Cloud, Phone) can share.
 
 **Components**:
+
 - **API Gateway**: FastAPI/Go service exposing `/context/state` (middleware) and `/context/query` (tool) endpoints
 - **Workers**: KEDA-scaled batch processors (Omni-Worker pattern)
 - **State Layer**: CloudNativePG (Postgres) + Dragonfly (Queue + Cache)
@@ -39,11 +41,13 @@ The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: use
 **Definition**: The user-facing suite deployed via helmfile.
 
 **Components**:
+
 - **UI**: OpenWebUI (best-in-class FOSS chat interface)
 - **Router**: LiteLLM Proxy (standardizes API calls, handles model switching & cost tracking)
 - **Coding**: Copilot Proxy (intercepts IDE traffic, injects personal context)
 
 **Integration**: OpenWebUI connects to MyContextProtocol via:
+
 - **Filter** (runs automatically before each request) - calls `/context/state` to inject user context into System Prompt
 - **Tool** (LLM decides to call) - calls `/context/query` when specific knowledge needed
 
@@ -53,20 +57,21 @@ The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: use
 
 ### 3.1 Stack Changes from Previous Design
 
-| Component | Previous | Current | Rationale |
-|-----------|----------|---------|-----------|
-| **FaaS Platform** | OpenFaaS | **KEDA + Containers** | No framework lock-in, scale-to-zero without gateway overhead, standard Deployments/Jobs |
-| **Queue** | NATS (OpenFaaS) | **Dragonfly** | Redis-compatible, lower memory footprint, better ARM64 performance, also serves as cache |
-| **Postgres** | Bitnami Helm Chart | **CloudNativePG Operator** | Declarative backups, automatic failover, better operator patterns |
-| **Mem0** | API Server (ARM64-only) | **Embedded Library** | Avoid ARM64 blocker, direct Python integration, simpler deployment |
-| **Functions** | OpenFaaS templates | **Standard Containers** | Language-agnostic, standard Dockerfiles, no special runtime |
-| **Graph Store** | Considered Neo4j/FalkorDB | **LlamaIndex PropertyGraph on Postgres** | Personal scale (<100k nodes), standard SQL tables, no Java overhead |
+| Component         | Previous                  | Current                               | Rationale                                                                                |
+| ----------------- | ------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **FaaS Platform** | OpenFaaS                  | **KEDA + Containers**                 | No framework lock-in, scale-to-zero without gateway overhead, standard Deployments/Jobs  |
+| **Queue**         | NATS (OpenFaaS)           | **Dragonfly**                         | Redis-compatible, lower memory footprint, better ARM64 performance, also serves as cache |
+| **Postgres**      | Bitnami Helm Chart        | **CloudNativePG Operator**            | Declarative backups, automatic failover, better operator patterns                        |
+| **Mem0**          | API Server (ARM64-only)   | **Embedded Library**                  | Avoid ARM64 blocker, direct Python integration, simpler deployment                       |
+| **Functions**     | OpenFaaS templates        | **Standard Containers**               | Language-agnostic, standard Dockerfiles, no special runtime                              |
+| **Graph Store**   | Considered Neo4j/FalkorDB | **LightRAG + Apache AGE on Postgres** | Purpose-built graph RAG, native Postgres extension, Cypher queries, single database      |
 
 ### 3.2 Why KEDA + Containers?
 
 **KEDA** (Kubernetes Event-Driven Autoscaling) provides scale-to-zero without a proprietary FaaS framework.
 
 **Benefits**:
+
 - **Standard Kubernetes primitives**: Deployments, Jobs, CronJobs - no lock-in
 - **Scale on anything**: Queue depth, cron schedule, HTTP requests, database queries
 - **Language-agnostic**: Any container, any language
@@ -74,18 +79,19 @@ The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: use
 
 **Comparison**:
 
-| Feature | OpenFaaS | Knative | KEDA + Containers |
-|---------|----------|---------|-------------------|
-| Scale to zero | Yes (Pro reliable) | Yes | Yes |
-| Lock-in | High (templates, CLI) | Medium (CRDs) | **Low** (standard k8s) |
-| Local dev | Awkward | Heavy | **Native** (just containers) |
-| Complexity | Medium | High (Istio/Kourier) | **Low** |
+| Feature       | OpenFaaS              | Knative              | KEDA + Containers            |
+| ------------- | --------------------- | -------------------- | ---------------------------- |
+| Scale to zero | Yes (Pro reliable)    | Yes                  | Yes                          |
+| Lock-in       | High (templates, CLI) | Medium (CRDs)        | **Low** (standard k8s)       |
+| Local dev     | Awkward               | Heavy                | **Native** (just containers) |
+| Complexity    | Medium                | High (Istio/Kourier) | **Low**                      |
 
 ### 3.3 Why Dragonfly?
 
 **Dragonfly** is a modern, high-performance Redis replacement.
 
 **Benefits for this use case**:
+
 - **Redis-compatible API**: KEDA Redis scaler works directly
 - **Lower memory footprint**: ~30% less than Redis
 - **Better ARM64 performance**: Native ARM64 optimization
@@ -97,6 +103,7 @@ The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: use
 **CloudNativePG** is a Kubernetes operator for PostgreSQL.
 
 **Benefits**:
+
 - **Declarative backups**: Schedule, retention, restore all in YAML
 - **Automatic failover**: When scaling to multiple replicas (future)
 - **Better operator patterns**: Custom resources for Postgres management
@@ -104,25 +111,31 @@ The core philosophy is **Sovereign + Cloud-Agnostic + Hybrid Intelligence**: use
 
 ---
 
-## 4. Memory Architecture: The Subjective/Objective Split
+## 4. Memory Architecture: The Three-Tier System
 
 ### 4.1 The Core Distinction
 
-The system maintains **strict separation** between subjective and objective data to prevent "memory pollution."
+The system maintains **three complementary memory tiers** for different types of knowledge:
 
-| Store | What | Example | Used For |
-|-------|------|---------|----------|
-| **Mem0 (Subjective)** | Opinions, preferences, beliefs, user context | "User thinks KEDA is hard", "User prefers dark mode" | **Personalization**, tone, agent behavior |
-| **LlamaIndex (Objective)** | Facts, definitions, events, entities | "KEDA is an autoscaler", "Meeting with Sarah on Tuesday" | **RAG**, information retrieval, knowledge base |
+| Tier                   | Store          | What                                               | Example                                               | Used For                                                   |
+| ---------------------- | -------------- | -------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| **Tier 1: SHORT**      | **Mem0**       | Subjective user facts, preferences, recent context | "User thinks KEDA is hard", "User prefers dark mode"  | **Personalization**, tone, agent behavior                  |
+| **Tier 2: LONG**       | **LlamaIndex** | Full documents, semantic search                    | PDFs, documentation, long-form content                | **Document retrieval**, semantic similarity                |
+| **Tier 3: RELATIONAL** | **LightRAG**   | Entity relationships, knowledge graph              | "KEDA scales Deployments", "Sarah works on Project X" | **Graph queries**, entity connections, multi-hop reasoning |
 
-**Why This Matters**:
-- Agent won't say "KEDA is hard" as a fact (it's user opinion)
-- Agent won't personalize based on objective facts
+**Why This Architecture**:
+
+- **Mem0** captures user preferences and subjective opinions (fast retrieval, <100ms)
+- **LlamaIndex** indexes full documents for semantic search (medium speed, ~200-500ms)
+- **LightRAG** builds entity graphs for relationship queries (graph traversal, Cypher)
 - Clean separation prevents hallucination and confusion
 
-**Edge Cases**:
-- "User's birthday is March 15" → **LlamaIndex** (objective fact about user)
-- "User prefers being called 'Alex' not 'Alexander'" → **Mem0** (subjective preference)
+**Example Routing**:
+
+- "What does the user like?" → **Mem0** (subjective preferences)
+- "Find documents about KEDA" → **LlamaIndex** (semantic document search)
+- "How is KEDA related to Kubernetes?" → **LightRAG** (entity relationships, graph query)
+- "What's the user's birthday?" → **LightRAG** (objective fact about user as entity)
 
 ### 4.2 The State vs Tools Pattern
 
@@ -130,20 +143,22 @@ This is the **key architectural insight** for building high-quality agents.
 
 #### State (Mem0) - Automatic Middleware
 
-**Access Pattern**: Pre-fetched and injected into System Prompt *before* the LLM sees the request.
+**Access Pattern**: Pre-fetched and injected into System Prompt _before_ the LLM sees the request.
 
 **Latency**: ~50-100ms, happens every request automatically.
 
-**Purpose**: Defines *who the user is* and *how to respond*.
+**Purpose**: Defines _who the user is_ and _how to respond_.
 
 **Implementation**:
+
 ```
 User Request → [MIDDLEWARE] → Mem0.search(user_id) → System Prompt Injection → LLM
 ```
 
 **Example**:
+
 ```
-System Prompt (injected): "You are a helpful assistant. 
+System Prompt (injected): "You are a helpful assistant.
 USER CONTEXT: User is a Python developer. Prefers concise answers. Hates YAML."
 
 User: "Help me debug this KEDA scaler"
@@ -151,37 +166,72 @@ User: "Help me debug this KEDA scaler"
 Agent: [Already knows user preferences, responds accordingly]
 ```
 
-#### Tools (LlamaIndex) - On-Demand Retrieval
+#### Tools (LlamaIndex + LightRAG) - On-Demand Retrieval
 
-**Access Pattern**: Agent *decides* to call this when it needs specific knowledge.
+**Access Pattern**: Agent _decides_ which tool to call based on query type.
 
 **Latency**: ~200-500ms, only when needed.
 
-**Purpose**: Retrieves *what facts or documents* are relevant.
+**Purpose**: Retrieves knowledge from two specialized stores:
+
+- **Tier 2 (LONG)**: Full documents via LlamaIndex semantic search
+- **Tier 3 (RELATIONAL)**: Entity relationships via LightRAG graph queries
 
 **Implementation**:
+
 ```
-LLM → [Decides "I need technical details"] → search_knowledge_base() → LlamaIndex query → Response
+LLM → [Decides "I need documents about X"] → search_documents() → LlamaIndex query → Response
+LLM → [Decides "I need relationships for Y"] → query_graph() → LightRAG query → Response
 ```
 
-**Tool Definition** (OpenAI-compatible):
+**Tool Definitions** (OpenAI-compatible):
+
+**Tool 1: Document Search (LlamaIndex)**
+
 ```json
 {
-  "name": "search_life_os",
-  "description": "Search your Knowledge Base for documents, code, or connections between people/events.",
+  "name": "search_life_os_documents",
+  "description": "Search your Knowledge Base for documents, notes, or code snippets using semantic search.",
   "parameters": {
     "type": "object",
     "properties": {
-      "query": {"type": "string"}
-    }
+      "query": { "type": "string", "description": "Semantic search query" }
+    },
+    "required": ["query"]
+  }
+}
+```
+
+**Tool 2: Graph Query (LightRAG)**
+
+```json
+{
+  "name": "search_life_os_graph",
+  "description": "Query the knowledge graph for entities and their relationships (people, events, concepts).",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Entity or relationship query"
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["local", "global", "hybrid", "naive"],
+        "default": "hybrid"
+      }
+    },
+    "required": ["query"]
   }
 }
 ```
 
 **Why This is Correct**:
-- **State is always relevant**: Every response needs user context (tone, preferences)
-- **Knowledge is conditionally relevant**: Not every question needs deep document search
-- **Efficiency**: Don't query entire knowledge base for "Hello" messages
+
+- **State is always relevant**: Every response needs user context (tone, preferences) from Mem0
+- **Knowledge is conditionally relevant**: Agent chooses which store based on query type
+- **Explicit tool selection**: Agent decides documents vs graph (no automatic routing)
+- **Efficiency**: Don't query stores for "Hello" messages
 
 ### 4.3 Request Lifecycle
 
@@ -212,23 +262,30 @@ LLM → [Decides "I need technical details"] → search_knowledge_base() → Lla
 │                                                              │
 │  Agent analyzes: "I need technical documentation..."         │
 │                                                              │
-│  → TOOL CALL: search_knowledge_base("KEDA debugging")        │
-└──────────────────────┬───────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│  TOOL (runs conditionally, agent decides)                    │
-│                                                              │
-│  LlamaIndex query → returns docs/graph results               │
-│                                                              │
-│  Endpoint: POST /context/query                               │
-│  Cost: ~200-500ms, only when needed                          │
-└─────────────────────────────────────────────────────────────┘
+│  → CHOOSES TOOL: documents or graph?                         │
+└──────────────────────┬─────────────┬────────────────────────┘
+                       │             │
+         ┌─────────────┘             └─────────────┐
+         │ Documents                     Graph     │
+         ▼                                         ▼
+┌────────────────────────────┐   ┌────────────────────────────┐
+│  TOOL 1: Document Search   │   │  TOOL 2: Graph Query       │
+│  (LlamaIndex)              │   │  (LightRAG)                │
+│                            │   │                            │
+│  POST /context/query/      │   │  POST /context/query/      │
+│       documents            │   │       graph                │
+│                            │   │                            │
+│  Returns: Full documents,  │   │  Returns: Entities,        │
+│  semantic matches          │   │  relationships, context    │
+│                            │   │                            │
+│  Cost: ~200-500ms          │   │  Cost: ~200-500ms          │
+└────────────────────────────┘   └────────────────────────────┘
 ```
 
 ### 4.4 OpenWebUI Integration
 
 **Filter for State (Mem0)**:
+
 ```python
 # mem0_injector.py (OpenWebUI Filter)
 def filter_request(messages, user_id):
@@ -237,21 +294,34 @@ def filter_request(messages, user_id):
         "http://mycontextprotocol/context/state",
         json={"user_id": user_id, "recent_messages": messages[-5:]}
     )
-    
+
     # Prepend to system prompt
     context = response.json()["context"]
     system_msg = {"role": "system", "content": f"USER CONTEXT: {context}"}
     return [system_msg] + messages
 ```
 
-**Tool for Knowledge (LlamaIndex)**:
+**Tool 1: Document Search (LlamaIndex)**:
+
 ```python
 # Registered in OpenWebUI Tools config
 {
-  "name": "search_life_os",
-  "url": "http://mycontextprotocol/context/query",
+  "name": "search_life_os_documents",
+  "url": "http://mycontextprotocol/context/query/documents",
   "method": "POST",
-  "description": "Search your Knowledge Base for documents, code, or life connections."
+  "description": "Search your Knowledge Base for documents, notes, and code snippets."
+}
+```
+
+**Tool 2: Graph Query (LightRAG)**:
+
+```python
+# Registered in OpenWebUI Tools config
+{
+  "name": "search_life_os_graph",
+  "url": "http://mycontextprotocol/context/query/graph",
+  "method": "POST",
+  "description": "Query the knowledge graph for entities and their relationships (people, events, concepts)."
 }
 ```
 
@@ -264,6 +334,7 @@ def filter_request(messages, user_id):
 **Decision**: Single worker that handles extraction and routing, rather than micro-workers.
 
 **Why**:
+
 - Simpler deployment (one image, one ScaledJob)
 - Single transaction (atomic writes to both Mem0 and LlamaIndex)
 - Easier debugging (one log stream)
@@ -304,19 +375,19 @@ spec:
     template:
       spec:
         containers:
-        - name: worker
-          image: mycontextprotocol/omni-worker:latest
+          - name: worker
+            image: mycontextprotocol/omni-worker:latest
   triggers:
-  - type: redis  # Dragonfly is Redis-compatible
-    metadata:
-      address: dragonfly.default.svc.cluster.local:6379
-      listName: ingest-queue
-      listLength: "10"  # Batch threshold
-  - type: cron
-    metadata:
-      timezone: UTC
-      start: 0 2 * * *  # Daily at 2 AM (fallback)
-      desiredReplicas: "1"
+    - type: redis # Dragonfly is Redis-compatible
+      metadata:
+        address: dragonfly.default.svc.cluster.local:6379
+        listName: ingest-queue
+        listLength: "10" # Batch threshold
+    - type: cron
+      metadata:
+        timezone: UTC
+        start: 0 2 * * * # Daily at 2 AM (fallback)
+        desiredReplicas: "1"
 ```
 
 ### 5.4 Extraction Schema
@@ -343,6 +414,7 @@ class ExtractionResult(BaseModel):
 ```
 
 **Instructor Usage**:
+
 ```python
 import instructor
 from openai import OpenAI
@@ -368,11 +440,11 @@ for snippet in result.knowledge_snippets:
 
 ### 5.5 Deduplication Strategy
 
-| Store | Strategy | Implementation |
-|-------|----------|----------------|
-| **Dragonfly Queue** | Message ID | Built-in Redis deduplication |
-| **Mem0** | Semantic/Entity resolution | Built-in (Mem0 consolidates "User likes coffee" + "User loves coffee") |
-| **LlamaIndex** | Content hash | Check hash before insert to avoid exact duplicates |
+| Store               | Strategy                   | Implementation                                                         |
+| ------------------- | -------------------------- | ---------------------------------------------------------------------- |
+| **Dragonfly Queue** | Message ID                 | Built-in Redis deduplication                                           |
+| **Mem0**            | Semantic/Entity resolution | Built-in (Mem0 consolidates "User likes coffee" + "User loves coffee") |
+| **LlamaIndex**      | Content hash               | Check hash before insert to avoid exact duplicates                     |
 
 ```python
 # LlamaIndex deduplication
@@ -380,13 +452,13 @@ import hashlib
 
 def insert_if_new(content: str, metadata: dict):
     content_hash = hashlib.sha256(content.encode()).hexdigest()
-    
+
     # Check if exists
     existing = db.execute(
         "SELECT id FROM document_store WHERE content_hash = ?",
         (content_hash,)
     )
-    
+
     if not existing:
         llamaindex.insert(content, metadata={"hash": content_hash, **metadata})
 ```
@@ -413,20 +485,24 @@ def insert_if_new(content: str, metadata: dict):
 │  MYCONTEXTPROTOCOL  │           DATA LAYER                               │
 │  (Part A)           │                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────┤
-│ • FastAPI Gateway   │  POSTGRESQL (CloudNativePG):                       │
-│   - /context/state  │  • Mem0 tables (user facts, entities)             │
-│   - /context/query  │  • document_store (embeddings, metadata)          │
-│                     │  • property_graph (LlamaIndex relationships)       │
+│  MYCONTEXTPROTOCOL  │           DATA LAYER                               │
+│  (Part A)           │                                                    │
+├─────────────────────┼────────────────────────────────────────────────────┤
+│ • FastAPI Gateway   │  POSTGRESQL (CloudNativePG + pgvector + AGE):     │
+│   - /context/state  │  • Mem0 table (user facts, Tier 1: SHORT)         │
+│   - /context/query  │  • data_documents (LlamaIndex, Tier 2: LONG)      │
+│                     │  • LIGHTRAG_* + AGE graphs (Tier 3: RELATIONAL)   │
 │ • Omni-Worker       │                                                    │
 │   (KEDA ScaledJob)  │  DRAGONFLY:                                        │
 │                     │  • Ingest queue (list: ingest-queue)              │
-│                     │  • Cache layer (Phase 2/3: user context cache)    │
+│ • LightRAG REST API │  • Cache layer (Phase 2/3: user context cache)    │
+│   (Separate service)│                                                    │
+│                     │  MinIO (Phase 2/3):                               │
+│ • Mem0 (library)    │  • vault-files (PDFs, documents)                  │
+│   Embedded in worker│  • vault-exports (backups)                        │
 │                     │                                                    │
-│ • Mem0 (library)    │  MinIO (Phase 2/3):                               │
-│   Embedded in worker│  • vault-files (PDFs, documents)                  │
-│                     │  • vault-exports (backups)                        │
 │ • LlamaIndex        │                                                    │
-│   PropertyGraph     │                                                    │
+│   PGVectorStore     │                                                    │
 └─────────────────────┴────────────────────────────────────────────────────┘
                  │
 ┌────────────────▼────────────────────────────────────────────────────────┐
@@ -442,33 +518,35 @@ def insert_if_new(content: str, metadata: dict):
 
 ### 7.1 Core Services
 
-| Component | Technology | Namespace | Role |
-|-----------|-----------|-----------|------|
-| **Database** | CloudNativePG (Postgres 16 + pgvector) | `database` | All persistent data (Mem0, vectors, graph) |
-| **Queue + Cache** | Dragonfly | `default` | Ingest queue + future user context cache |
-| **Scaling** | KEDA | `keda-system` | Scale workers based on queue depth / cron |
-| **Gateway** | FastAPI (Python) | `default` | API endpoints for State and Tools |
-| **Worker** | Python container (Mem0 + LlamaIndex) | `default` | Batch processing, extraction, storage |
-| **Ingress** | Cloudflare Tunnel + Traefik | `cloudflare`, `kube-system` | Zero-trust HTTPS access |
-| **Storage** (Phase 2/3) | MinIO | `storage` | S3-compatible object storage for files |
+| Component               | Technology                                          | Namespace                   | Role                                                     |
+| ----------------------- | --------------------------------------------------- | --------------------------- | -------------------------------------------------------- |
+| **Database**            | CloudNativePG (Postgres 16 + pgvector + Apache AGE) | `database`                  | All persistent data (Mem0, LlamaIndex, LightRAG)         |
+| **Queue + Cache**       | Dragonfly                                           | `default`                   | Ingest queue + future user context cache                 |
+| **Scaling**             | KEDA                                                | `keda-system`               | Scale workers based on queue depth / cron                |
+| **Gateway**             | FastAPI (Python)                                    | `default`                   | API endpoints for State and Tools                        |
+| **Worker**              | Python container (Mem0 + LlamaIndex)                | `default`                   | Batch processing, extraction, storage                    |
+| **Graph RAG**           | LightRAG REST API                                   | `default`                   | Entity extraction, graph queries, relationship traversal |
+| **Ingress**             | Cloudflare Tunnel + Traefik                         | `cloudflare`, `kube-system` | Zero-trust HTTPS access                                  |
+| **Storage** (Phase 2/3) | MinIO                                               | `storage`                   | S3-compatible object storage for files                   |
 
 ### 7.2 Python Libraries (Worker)
 
-| Library | Purpose | Usage |
-|---------|---------|-------|
-| **Mem0** | Episodic memory, user facts | `mem0.add_memory()`, entity resolution, graph building |
-| **LlamaIndex** | Semantic search, property graph | Document indexing, vector store, graph queries |
-| **instructor** | LLM output validation | Structured extraction with Pydantic |
-| **psycopg2** | Postgres driver | Direct DB access |
-| **redis-py** | Dragonfly client | Queue operations |
+| Library        | Purpose                               | Usage                                                  |
+| -------------- | ------------------------------------- | ------------------------------------------------------ |
+| **Mem0**       | Episodic memory, user facts           | `mem0.add_memory()`, entity resolution, Tier 1 (SHORT) |
+| **LlamaIndex** | Document indexing, semantic search    | PGVectorStore for documents, Tier 2 (LONG)             |
+| **LightRAG**   | Graph-based RAG, entity relationships | REST API for graph queries, Tier 3 (RELATIONAL)        |
+| **instructor** | LLM output validation                 | Structured extraction with Pydantic                    |
+| **psycopg2**   | Postgres driver                       | Direct DB access                                       |
+| **redis-py**   | Dragonfly client                      | Queue operations                                       |
 
 ### 7.3 Why Python for Workers?
 
-| Language | Verdict | Rationale |
-|----------|---------|-----------|
+| Language   | Verdict               | Rationale                                                                                                                          |
+| ---------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Python** | ✅ **Correct choice** | Mem0 is Python-native, LlamaIndex is Python-native, instructor/pydantic mature. Workers are IO-bound (network, DB), not CPU-bound. |
-| Go | ❌ | Would require calling Python anyway or reimplementing Mem0/LlamaIndex |
-| Rust | ❌ | Same problem, no ecosystem for this workload |
+| Go         | ❌                    | Would require calling Python anyway or reimplementing Mem0/LlamaIndex                                                              |
+| Rust       | ❌                    | Same problem, no ecosystem for this workload                                                                                       |
 
 **Where Go/Rust makes sense**: The FastAPI gateway, if high throughput needed. But Python FastAPI is fine for MVP.
 
@@ -496,6 +574,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 **Configuration**:
+
 ```python
 from mem0 import Memory
 
@@ -530,7 +609,7 @@ CREATE TABLE data_documents (
 );
 
 -- HNSW index for vector similarity search
-CREATE INDEX documents_embedding_idx 
+CREATE INDEX documents_embedding_idx
   ON data_documents USING hnsw (embedding vector_cosine_ops);
 
 -- If hybrid_search enabled:
@@ -538,6 +617,7 @@ CREATE INDEX documents_embedding_idx
 ```
 
 **Configuration**:
+
 ```python
 from llama_index.vector_stores.postgres import PGVectorStore
 
@@ -553,16 +633,69 @@ vector_store = PGVectorStore.from_params(
 )
 ```
 
-#### Property Graph Storage
+#### Property Graph Storage (LightRAG + Apache AGE)
 
-**Current Implementation**: SimplePropertyGraphStore (disk-based, persisted to filesystem).
+**Current Implementation**: LightRAG with Apache AGE (PostgreSQL graph extension).
 
-**Known Limitation**: Not suitable for production scale. Documented for future migration to Neo4j/Postgres-backed solution. See ticket for PropertyGraph migration (P3).
+**Architecture**: Three-tier memory system - Mem0 (short/subjective), LlamaIndex (long/documents), LightRAG (relational/graph).
 
-**Future Options**:
-- Neo4jPropertyGraphStore (most feature-rich, requires separate service)
-- Custom Postgres implementation (integrate with existing database)
-- KuzuGraphStore (embedded, better performance than SimplePropertyGraphStore)
+**Storage Backend**:
+
+- **Apache AGE**: PostgreSQL extension providing graph model with openCypher query support
+- **Tables**: `LIGHTRAG_DOC_FULL`, `LIGHTRAG_DOC_CHUNKS`, `LIGHTRAG_VDB_*` (vectors), `LIGHTRAG_LLM_CACHE`, `LIGHTRAG_DOC_STATUS`
+- **Graph**: AGE graphs for entity relationships with Cypher queries
+
+**Why LightRAG + AGE?**:
+
+- **Purpose-built for RAG**: LightRAG designed specifically for graph-augmented retrieval
+- **Single database**: All three tiers in one PostgreSQL instance (Mem0 + LlamaIndex + LightRAG/AGE)
+- **Nix-native**: Apache AGE already in nixpkgs (`pkgs.postgresql_16Packages.age`)
+- **CNPG compatible**: Mount via ImageVolume, no custom image build needed
+- **Full Cypher**: openCypher query language for graph traversal
+- **Modern stack**: LightRAG is cutting-edge (27k stars, Beta but production-ready for pilots)
+
+**Configuration**:
+
+```python
+# LightRAG with PostgreSQL backend
+rag = LightRAG(
+    working_dir=WORKING_DIR,
+    llm_model_func=llm_model_func,
+    embedding_func=embedding_func,
+    graph_storage="PGGraphStorage",
+    vector_storage="PGVectorStorage",
+    doc_status_storage="PGDocStatusStorage",
+    kv_storage="PGKVStorage",
+)
+await rag.initialize_storages()  # Auto-creates extensions and tables
+
+# Environment variables
+POSTGRES_HOST=postgresql-cluster-rw.database.svc.cluster.local
+POSTGRES_PORT=5432
+POSTGRES_DATABASE=lightrag  # Separate database to avoid table conflicts
+POSTGRES_USER=app
+POSTGRES_PASSWORD=...
+```
+
+**AGE Requirements**:
+
+- PostgreSQL ≥ 16.6
+- `CREATE EXTENSION vector` (pgvector - already deployed)
+- `CREATE EXTENSION age CASCADE` (Apache AGE - to be added)
+
+**Deployment Strategy**:
+
+1. Build Nix OCI image with AGE extension artifacts
+2. Mount into CNPG via ImageVolume pattern
+3. Deploy LightRAG as REST API service (isolation, stability)
+4. Gateway calls LightRAG API for graph queries
+
+**Query Modes**:
+
+- `local`: Entity-focused retrieval
+- `global`: High-level summaries
+- `hybrid`: Combined local + global
+- `naive`: Simple vector search fallback
 
 #### Application Tables (Managed by Alembic)
 
@@ -585,11 +718,12 @@ CREATE TABLE inbox (
 -- Indexes for efficient querying
 CREATE INDEX idx_inbox_processed ON inbox(processed, created_at);
 CREATE INDEX idx_inbox_created_at ON inbox(created_at DESC);
-CREATE UNIQUE INDEX idx_inbox_content_hash ON inbox(content_hash) 
+CREATE UNIQUE INDEX idx_inbox_content_hash ON inbox(content_hash)
   WHERE processed = false;  -- Deduplicate pending items only
 ```
 
 **Schema Management**:
+
 - **Mem0 & LlamaIndex**: Libraries handle their own schema (no Alembic migrations needed)
 - **Application tables**: Managed via `src/mycontextprotocol/models.py` + Alembic
 - **Source of truth**: SQLAlchemy models → `alembic revision --autogenerate` → migrations
@@ -621,6 +755,7 @@ EXPIRE user:context:alice 300
 Add new content to the system.
 
 **Request**:
+
 ```json
 {
   "content": "string (max 1MB)",
@@ -635,6 +770,7 @@ Add new content to the system.
 ```
 
 **Response** (202 Accepted):
+
 ```json
 {
   "id": "uuid",
@@ -650,17 +786,19 @@ Add new content to the system.
 Retrieve user context for System Prompt injection. Called by OpenWebUI Filter automatically.
 
 **Request**:
+
 ```json
 {
   "user_id": "string",
   "recent_messages": [
-    {"role": "user", "content": "..."},
-    {"role": "assistant", "content": "..."}
+    { "role": "user", "content": "..." },
+    { "role": "assistant", "content": "..." }
   ]
 }
 ```
 
 **Response**:
+
 ```json
 {
   "context": "User is a Python developer. Prefers concise answers. Hates YAML. Working on KEDA project.",
@@ -669,40 +807,80 @@ Retrieve user context for System Prompt injection. Called by OpenWebUI Filter au
 }
 ```
 
-### 9.3 Query API (Tool)
+### 9.3 Query API (Tools)
 
-**POST /context/query**
+Agent explicitly chooses which endpoint to call based on query type.
 
-Search knowledge base. Called by LLM when it decides it needs information.
+#### 9.3.1 Document Search (LlamaIndex)
+
+**POST /context/query/documents**
+
+Semantic search over full documents. Called by LLM when it needs document content.
 
 **Request**:
+
 ```json
 {
   "query": "What is KEDA and how does it work?",
-  "limit": 10,
-  "search_mode": "hybrid"  // "semantic", "graph", "hybrid"
+  "limit": 10
 }
 ```
 
 **Response**:
+
 ```json
 {
   "results": [
     {
-      "type": "document",
       "id": "uuid",
       "content": "KEDA is a Kubernetes event-driven autoscaler...",
       "relevance": 0.89,
-      "source": "documentation"
-    },
-    {
-      "type": "graph_connection",
-      "id": "uuid",
-      "content": "KEDA → scales → Deployments, uses → ScaledObject CRD",
-      "relevance": 0.85
+      "source": "documentation",
+      "metadata": {
+        "title": "KEDA Overview",
+        "url": "https://..."
+      }
     }
   ],
-  "query_time_ms": 156
+  "query_time_ms": 156,
+  "store": "llamaindex"
+}
+```
+
+#### 9.3.2 Graph Query (LightRAG)
+
+**POST /context/query/graph**
+
+Entity relationship queries. Called by LLM when it needs connections or context.
+
+**Request**:
+
+```json
+{
+  "query": "How does KEDA relate to Kubernetes resources?",
+  "mode": "hybrid", // "local", "global", "hybrid", "naive"
+  "limit": 10
+}
+```
+
+**Response**:
+
+```json
+{
+  "results": [
+    {
+      "entities": ["KEDA", "ScaledObject", "Deployment"],
+      "relationships": [
+        "KEDA manages ScaledObject CRD",
+        "ScaledObject scales Deployment based on metrics"
+      ],
+      "context": "KEDA watches external event sources...",
+      "relevance": 0.92
+    }
+  ],
+  "query_time_ms": 203,
+  "store": "lightrag",
+  "mode_used": "hybrid"
 }
 ```
 
@@ -713,12 +891,14 @@ Search knowledge base. Called by LLM when it decides it needs information.
 ### 10.1 Infrastructure
 
 **Production**: Oracle Cloud Free Tier
+
 - **Instance**: VM.Standard.A1.Flex (ARM Ampere)
 - **Specs**: 4 OCPU, 24GB RAM, 200GB boot + 100GB block storage
 - **OS**: Ubuntu 24.04 ARM64
 - **K3s**: Single-node cluster (can scale to multi-node later)
 
 **Local Development**: k3d
+
 - **Cluster**: K3s in Docker
 - **Resource**: ~8GB RAM allocated to Docker Desktop
 - **Parity**: Same manifests, same Helm charts
@@ -726,6 +906,7 @@ Search knowledge base. Called by LLM when it decides it needs information.
 ### 10.2 Deployment Method
 
 **Helmfile** for orchestration:
+
 ```yaml
 # helmfile.yaml
 repositories:
@@ -774,6 +955,7 @@ releases:
 **All images must be linux/arm64** for Oracle Cloud deployment.
 
 **Build strategy**:
+
 ```dockerfile
 # Gateway (FastAPI)
 FROM python:3.12-slim-bookworm
@@ -785,6 +967,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 **Multi-arch build**:
+
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
@@ -801,6 +984,7 @@ docker buildx build \
 **Goal**: Deploy base Kubernetes infrastructure with database and queue.
 
 **Tasks**:
+
 - [x] Remove OpenFaaS from helmfile
 - [x] Add CloudNativePG operator to helmfile
 - [x] Add Dragonfly to helmfile
@@ -816,9 +1000,10 @@ docker buildx build \
 **Goal**: Modernize dev environment with uv, ruff, basedpyright, lefthook, Taskfile, Alembic.
 
 **Tasks**:
+
 - [ ] Update flake.nix (remove faas-cli, add modern tools)
 - [ ] Create pyproject.toml (Python 3.13, dependencies, tool configs)
-- [ ] Create Taskfile.yml (dev tasks: lint, format, typecheck, db:*)
+- [ ] Create Taskfile.yml (dev tasks: lint, format, typecheck, db:\*)
 - [ ] Create lefthook.yml (pre-commit hooks: ruff, basedpyright)
 - [ ] Setup Alembic (migrations from SQLAlchemy models)
 - [ ] Update documentation (ARCHITECTURE, DEVELOPMENT, README)
@@ -827,38 +1012,54 @@ docker buildx build \
 
 ### Phase 2: Application Services (Next Sprint)
 
-**Goal**: Build and deploy MyContextProtocol API and worker.
+**Goal**: Build and deploy MyContextProtocol API, worker, and LightRAG integration.
 
 **Tasks**:
+
+- [ ] Add Apache AGE extension to CloudNativePG
+  - [ ] Build Nix OCI image with AGE extension artifacts
+  - [ ] Configure CNPG ImageVolume mount
+  - [ ] Test `CREATE EXTENSION age CASCADE`
 - [ ] Create FastAPI gateway service
   - [ ] POST /ingest endpoint (writes to Dragonfly queue)
   - [ ] POST /context/state endpoint (queries Mem0)
-  - [ ] POST /context/query endpoint (queries LlamaIndex)
+  - [ ] POST /context/query endpoint (queries LlamaIndex + LightRAG)
 - [ ] Create Omni-Worker container
   - [ ] LLM extraction with instructor + Pydantic
   - [ ] Mem0 library integration (embedded mode)
-  - [ ] LlamaIndex PropertyGraph integration
-  - [ ] Parallel writes to both stores
+  - [ ] LlamaIndex PGVectorStore integration (documents only)
+  - [ ] Parallel writes to Mem0 + LlamaIndex
+- [ ] Deploy LightRAG REST API service
+  - [ ] Configure PostgreSQL/AGE backend (separate database)
+  - [ ] Create Kubernetes Deployment + Service
+  - [ ] Test entity extraction and graph queries
+- [ ] Integrate LightRAG into Gateway
+  - [ ] Add LightRAG client to /context/query endpoint
+  - [ ] Implement query routing (LlamaIndex for docs, LightRAG for graph)
+  - [ ] Performance testing
 - [ ] Create KEDA ScaledJob for worker
-- [ ] Write Dockerfiles for gateway and worker
+- [ ] Write Nix-based container images (gateway, worker, lightrag)
 - [ ] Create Helm chart for mycontextprotocol
 - [ ] Deploy and test end-to-end flow
 
-**Deliverable**: Working ingestion pipeline: API → Queue → Worker → Postgres (Mem0 + LlamaIndex)
+**Deliverable**: Working three-tier memory system: API → Queue → Worker → Postgres (Mem0 + LlamaIndex + LightRAG/AGE)
 
 ### Phase 3: Query & Retrieval (Sprint 3)
 
 **Goal**: Implement State and Tools query patterns.
 
 **Tasks**:
+
 - [ ] Implement `/context/state` logic
   - [ ] Query Mem0 for user facts
   - [ ] Format as System Prompt injection
   - [ ] Return within 100ms SLA
-- [ ] Implement `/context/query` logic
-  - [ ] Semantic search (LlamaIndex vector store)
-  - [ ] Graph traversal (LlamaIndex PropertyGraph)
-  - [ ] Hybrid result merging
+- [ ] Implement `/context/query/documents` endpoint (LlamaIndex)
+  - [ ] Semantic search over document store
+  - [ ] Return ranked document results
+- [ ] Implement `/context/query/graph` endpoint (LightRAG)
+  - [ ] Graph traversal and entity extraction
+  - [ ] Support local/global/hybrid/naive modes
 - [ ] Add query result caching (Dragonfly)
 - [ ] Performance testing and optimization
 
@@ -869,6 +1070,7 @@ docker buildx build \
 **Goal**: Connect OpenWebUI to MyContextProtocol.
 
 **Tasks**:
+
 - [ ] Write OpenWebUI Filter for `/context/state` (Mem0 injection)
 - [ ] Register `/context/query` as OpenWebUI Tool
 - [ ] Deploy OpenWebUI via Helmfile
@@ -880,10 +1082,10 @@ docker buildx build \
 ### Phase 5: Advanced Features (Future)
 
 **Deferred to Phase 2/3** (after MVP):
+
 - [ ] Dragonfly context cache (cache Mem0 results, 5-30 min TTL)
 - [ ] MinIO deployment for file storage
 - [ ] Multi-modal ingestion (PDFs, images, audio)
-- [ ] Query routing strategies (router LLM, fan-out, hierarchical)
 - [ ] Backup strategy (Postgres → MinIO daily)
 - [ ] Monitoring and observability (Prometheus, Grafana)
 
@@ -898,23 +1100,24 @@ docker buildx build \
 **Solution**: Cache recent user context in Dragonfly with short TTL.
 
 **Implementation**:
+
 ```python
 # In /context/state endpoint
 def get_user_context(user_id: str) -> str:
     # Check cache first
     cache_key = f"user:context:{user_id}"
     cached = dragonfly.get(cache_key)
-    
+
     if cached:
         return cached
-    
+
     # Cache miss - query Mem0
     context = mem0.search(user_id=user_id)
     formatted = format_for_prompt(context)
-    
+
     # Cache for 5 minutes
     dragonfly.setex(cache_key, 300, formatted)
-    
+
     return formatted
 ```
 
@@ -929,6 +1132,7 @@ def get_user_context(user_id: str) -> str:
 **Options**:
 
 **A. Router LLM** (decides which store to query):
+
 ```python
 # Classify query type first
 query_type = llm.classify(query, types=["factual", "personal", "mixed"])
@@ -942,6 +1146,7 @@ else:  # mixed
 ```
 
 **B. Fan-out** (query both, merge results):
+
 ```python
 # Always query both in parallel
 mem0_results, llamaindex_results = asyncio.gather(
@@ -954,6 +1159,7 @@ results = merge_and_rerank(mem0_results, llamaindex_results)
 ```
 
 **C. Hierarchical** (check Mem0 first, then LlamaIndex if needed):
+
 ```python
 # Query Mem0 for user context first
 mem0_results = mem0.search(query)
@@ -971,6 +1177,7 @@ if len(mem0_results) < threshold:
 **Use Case**: Store PDFs, images, documents for later processing or retrieval.
 
 **Schema**:
+
 ```
 vault-files/
   ├── pdf/document-{uuid}.pdf
@@ -983,6 +1190,7 @@ vault-exports/
 ```
 
 **Integration**:
+
 ```python
 # In Omni-Worker, after extraction
 if file_reference in metadata:
@@ -992,7 +1200,7 @@ if file_reference in metadata:
         object_name=f"pdf/{inbox_id}.pdf",
         file_path=temp_file_path
     )
-    
+
     # Store reference in document_store
     vault_reference = f"s3://vault-files/pdf/{inbox_id}.pdf"
 ```
@@ -1023,22 +1231,20 @@ if file_reference in metadata:
 
 ### Decisions Made
 
-| Decision | Trade-off | Rationale |
-|----------|-----------|-----------|
-| **Mem0 as library** | Tighter coupling | Avoids ARM64 server blocker, simpler deployment, direct Python access |
-| **Single Omni-Worker** | Can't scale components independently | Simpler for MVP, atomic transactions, easier debugging |
-| **KEDA + Containers** | More K8s complexity than FaaS | No framework lock-in, standard patterns, language-agnostic |
-| **Postgres for graph** | Not optimized for deep traversal | Personal scale (<100k nodes, 1-2 hops), avoids Neo4j Java overhead |
-| **Dragonfly dual-role** | Single point of failure | Redis-compatible, lower resource usage, simple to operate |
-| **State always queries Mem0** | Latency on every request | Ensures agent always has user context, can be cached in Phase 2/3 |
+| Decision                      | Trade-off                            | Rationale                                                                   |
+| ----------------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
+| **Mem0 as library**           | Tighter coupling                     | Avoids ARM64 server blocker, simpler deployment, direct Python access       |
+| **Single Omni-Worker**        | Can't scale components independently | Simpler for MVP, atomic transactions, easier debugging                      |
+| **KEDA + Containers**         | More K8s complexity than FaaS        | No framework lock-in, standard patterns, language-agnostic                  |
+| **LightRAG + Apache AGE**     | Beta software, fewer references      | Purpose-built graph RAG (27k stars), PostgreSQL-native, modern architecture |
+| **Dragonfly dual-role**       | Single point of failure              | Redis-compatible, lower resource usage, simple to operate                   |
+| **State always queries Mem0** | Latency on every request             | Ensures agent always has user context, can be cached in Phase 2/3           |
 
 ### Future Optimization Paths
 
 - **Mem0 to separate service**: If multi-language clients needed
 - **Split Omni-Worker**: If processing time imbalance emerges
-- **Apache AGE for graph**: If graph queries become complex (3+ hops, algorithms)
 - **Separate cache service**: If Dragonfly becomes bottleneck
-- **Router LLM for queries**: If query cost becomes prohibitive
 
 ---
 
@@ -1054,19 +1260,19 @@ if file_reference in metadata:
 
 ### 15.2 Technology Stack
 
-| Category | Tool | Purpose | Why This Choice |
-|----------|------|---------|----------------|
-| **Python Version** | 3.13 | Runtime | Latest stable with performance improvements |
-| **Package Manager** | uv | Fast dependency resolution | 10-100x faster than pip, deterministic uv.lock |
-| **Nix Bridge** | uv2nix | Python ↔ Nix integration | Bridges uv.lock to Nix reproducibility (lnbits pattern) |
-| **Type Checker** | basedpyright | Static analysis | Faster than mypy, Pydantic v2 native, strict mode |
-| **Linter/Formatter** | ruff | Code quality | Replaces black+isort+flake8, Rust-fast |
-| **Pre-commit** | lefthook | Git hooks | Respects Nix PATH, parallel execution, no cache duplication |
-| **Task Runner** | Taskfile (go-task) | Dev automation | YAML-based, simpler than Make, cross-platform |
-| **DB Migrations** | Alembic | Schema management | SQLAlchemy models → autogenerate migrations |
-| **Security** | GitHub Dependabot | Dependency updates | Free, automatic, no local tooling needed |
-| **Container Builder** | Nix dockerTools | Image creation | No Dockerfiles, reproducible, minimal layers |
-| **K8s Debugging** | k9s + stern | Cluster inspection | TUI browser + log streaming |
+| Category              | Tool               | Purpose                    | Why This Choice                                             |
+| --------------------- | ------------------ | -------------------------- | ----------------------------------------------------------- |
+| **Python Version**    | 3.13               | Runtime                    | Latest stable with performance improvements                 |
+| **Package Manager**   | uv                 | Fast dependency resolution | 10-100x faster than pip, deterministic uv.lock              |
+| **Nix Bridge**        | uv2nix             | Python ↔ Nix integration   | Bridges uv.lock to Nix reproducibility (lnbits pattern)     |
+| **Type Checker**      | basedpyright       | Static analysis            | Faster than mypy, Pydantic v2 native, strict mode           |
+| **Linter/Formatter**  | ruff               | Code quality               | Replaces black+isort+flake8, Rust-fast                      |
+| **Pre-commit**        | lefthook           | Git hooks                  | Respects Nix PATH, parallel execution, no cache duplication |
+| **Task Runner**       | Taskfile (go-task) | Dev automation             | YAML-based, simpler than Make, cross-platform               |
+| **DB Migrations**     | Alembic            | Schema management          | SQLAlchemy models → autogenerate migrations                 |
+| **Security**          | GitHub Dependabot  | Dependency updates         | Free, automatic, no local tooling needed                    |
+| **Container Builder** | Nix dockerTools    | Image creation             | No Dockerfiles, reproducible, minimal layers                |
+| **K8s Debugging**     | k9s + stern        | Cluster inspection         | TUI browser + log streaming                                 |
 
 ### 15.3 Development Workflow
 
@@ -1100,12 +1306,14 @@ git push            # Runs lefthook: task check
 **Source of Truth**: SQLAlchemy models in `src/mycontextprotocol/models.py`
 
 **Workflow**:
+
 1. Define/modify models in Python (e.g., add column, new table)
 2. Run `task db:autogenerate -- "description"` → Alembic inspects models, generates migration
 3. Review generated migration in `alembic/versions/*.py`
 4. Run `task db:upgrade` → Apply to database
 
 **Example**:
+
 ```python
 # src/mycontextprotocol/models.py
 from sqlalchemy import Column, String, TIMESTAMP, Boolean
@@ -1116,7 +1324,7 @@ Base = declarative_base()
 
 class Inbox(Base):
     __tablename__ = "inbox"
-    
+
     id = Column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
     content = Column(String, nullable=False)
     source = Column(String(100))
@@ -1149,6 +1357,7 @@ pre-push:
 ```
 
 **Benefits**:
+
 - Catches issues before CI
 - Respects Nix PATH (unlike pre-commit framework)
 - Parallel execution (fast)
@@ -1199,13 +1408,14 @@ mycontextprotocol is architected as a **two-part system**:
 1. **MyContextProtocol** (Backend) - Memory-as-a-Service API with KEDA-scaled workers
 2. **Personal AI Stack** (Frontend) - OpenWebUI + LiteLLM consuming the memory API
 
-The **Subjective/Objective split** (Mem0 vs LlamaIndex) prevents memory pollution, while the **State vs Tools pattern** ensures efficient context injection (automatic) and knowledge retrieval (on-demand).
+The **three-tier memory architecture** (Mem0 for state, LlamaIndex for documents, LightRAG for graph) prevents memory pollution, while the **State vs Tools pattern** ensures efficient context injection (automatic) and knowledge retrieval (explicit tool selection).
 
 **Key Technologies**:
+
 - **KEDA + Containers** (not OpenFaaS) for scale-to-zero without framework lock-in
 - **Dragonfly** (not Redis/NATS) for queue + future cache
 - **CloudNativePG** (not Bitnami Helm) for declarative Postgres with backups
 - **Mem0 library** (not API server) to avoid ARM64 blocker
-- **LlamaIndex PropertyGraph on Postgres** (not Neo4j) for personal-scale graph
+- **LightRAG + Apache AGE on Postgres** (not Neo4j) for purpose-built graph RAG
 
 The system is designed for **single-user initially**, with clear paths to multi-user and advanced features in Phase 2/3.
