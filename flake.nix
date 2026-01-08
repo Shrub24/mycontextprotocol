@@ -64,8 +64,12 @@
               k3d
               k9s
               stern
+              kubeconform
+              kube-linter
+              yamllint
 
               docker
+              trivy
               go-task
               lefthook
               opentofu

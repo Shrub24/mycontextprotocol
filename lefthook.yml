@@ -12,8 +12,29 @@ pre-commit:
     typecheck:
       glob: "*.py"
       run: basedpyright {staged_files}
+    
+    helm-lint:
+      glob: "infra/k8s/charts/**/*.yaml"
+      run: cd infra/k8s && helm lint charts/*
+    
+    kube-lint:
+      glob: "infra/k8s/**/*.yaml"
+      run: kube-linter lint {staged_files}
+    
+    yaml-lint:
+      glob: "**/*.{yaml,yml}"
+      exclude: "infra/k8s/charts/**/templates/"
+      run: yamllint {staged_files}
 
 pre-push:
   commands:
     full-check:
       run: task check
+    
+    kubeconform:
+      run: |
+        cd infra/k8s
+        helm template charts/* | kubeconform \
+          -summary \
+          -schema-location default \
+          -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
