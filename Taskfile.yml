@@ -1,9 +1,17 @@
-version: '3'
+version: "3"
 
 vars:
   SRC_DIR: src
   TEST_DIR: tests
-  PYTHON_FILES: "{{.SRC_DIR}} {{.TEST_DIR}}"
+  FILES: '{{.CLI_ARGS | default (print .SRC_DIR " " .TEST_DIR)}}'
+
+includes:
+  check:
+    taskfile: .taskfiles/check.yml
+    vars:
+      FILES: "{{.CLI_ARGS}}"
+  deploy:
+    taskfile: .taskfiles/deploy.yml
 
 tasks:
   default:
@@ -16,114 +24,10 @@ tasks:
     cmds:
       - uv sync
 
-  format:
-    desc: Auto-format code with ruff
-    cmds:
-      - ruff format {{.PYTHON_FILES}}
-
-  format:check:
-    desc: Check formatting without modifying files
-    cmds:
-      - ruff format --check {{.PYTHON_FILES}}
-
-  lint:
-    desc: Lint code with ruff
-    cmds:
-      - ruff check {{.PYTHON_FILES}}
-
-  lint:fix:
-    desc: Lint and auto-fix issues
-    cmds:
-      - ruff check --fix {{.PYTHON_FILES}}
-
-  typecheck:
-    desc: Type check with basedpyright
-    cmds:
-      - basedpyright {{.SRC_DIR}}
-
-  check:
-    desc: Run all quality checks (format + lint + typecheck)
-    cmds:
-      - task: format
-      - task: lint
-      - task: typecheck
-
-  test:
-    desc: Run pytest tests
-    cmds:
-      - uv run pytest {{.TEST_DIR}} -v
-
-  test:cov:
-    desc: Run tests with coverage report
-    cmds:
-      - uv run pytest {{.TEST_DIR}} --cov --cov-report=term-missing --cov-report=html
-
-  db:upgrade:
-    desc: Apply database migrations (alembic upgrade head)
-    cmds:
-      - uv run alembic upgrade head
-
-  db:downgrade:
-    desc: Rollback one migration (alembic downgrade -1)
-    cmds:
-      - uv run alembic downgrade -1
-
-  db:autogenerate:
-    desc: Generate migration from SQLAlchemy models (usage - task db:autogenerate -- "message")
-    cmds:
-      - uv run alembic revision --autogenerate -m "{{.CLI_ARGS}}"
-
-  db:history:
-    desc: Show migration history
-    cmds:
-      - uv run alembic history
-
-  db:current:
-    desc: Show current migration version
-    cmds:
-      - uv run alembic current
-
-  cluster:create:
-    desc: Create local k3d cluster
-    cmds:
-      - k3d cluster create mycontext --config k3d/local.yaml
-
-  cluster:delete:
-    desc: Delete local k3d cluster
-    cmds:
-      - k3d cluster delete mycontext
-
-  cluster:start:
-    desc: Start stopped k3d cluster
-    cmds:
-      - k3d cluster start mycontext
-
-  cluster:stop:
-    desc: Stop k3d cluster
-    cmds:
-      - k3d cluster stop mycontext
-
-  deploy:
-    desc: Deploy services with helmfile
-    dir: infra/k8s
-    cmds:
-      - helmfile sync
-
-  deploy:diff:
-    desc: Show what would change with helmfile
-    dir: infra/k8s
-    cmds:
-      - helmfile diff
-
-  logs:
-    desc: Stream logs from pods (usage - task logs -- gateway)
-    cmds:
-      - stern {{.CLI_ARGS}}
-
   dev:
     desc: Run FastAPI gateway in development mode
     cmds:
-      - uv run uvicorn mycontextprotocol.gateway.main:app --reload --host 0.0.0.0 --port 8000
+      - uv run uvicorn mycontextprotocol.gateway:app --reload --host 0.0.0.0 --port 8000
 
   clean:
     desc: Clean build artifacts and caches
@@ -131,3 +35,8 @@ tasks:
       - rm -rf .pytest_cache .coverage htmlcov .ruff_cache
       - find . -type d -name __pycache__ -exec rm -rf {} +
       - find . -type f -name "*.pyc" -delete
+
+  help:
+    desc: Show comprehensive development guide
+    cmds:
+      - cat DEVELOPMENT.md

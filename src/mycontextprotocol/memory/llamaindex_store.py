@@ -6,9 +6,8 @@ Uses PostgreSQL + pgvector backend.
 
 from typing import Any
 
-from llama_index.core import VectorStoreIndex, StorageContext
+from llama_index.core import StorageContext, VectorStoreIndex
 from llama_index.vector_stores.postgres import PGVectorStore
-from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -31,7 +30,7 @@ def create_vector_store() -> PGVectorStore:
     Returns:
         Configured PGVectorStore connected to PostgreSQL
     """
-    settings = LlamaIndexSettings()
+    settings = LlamaIndexSettings.model_validate({})
 
     return PGVectorStore.from_params(
         host=settings.postgres_host,

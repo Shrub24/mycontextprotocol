@@ -10,7 +10,7 @@ Note: Mem0 and LlamaIndex manage their own tables:
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 from uuid import UUID
 
 from sqlalchemy import (
@@ -20,14 +20,15 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
     """Base class for all models."""
 
-    type_annotation_map = {
+    type_annotation_map: ClassVar[dict[type, Any]] = {
         datetime: TIMESTAMP(timezone=True),
         dict[str, Any]: JSONB,
     }

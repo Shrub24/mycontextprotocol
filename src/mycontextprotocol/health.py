@@ -4,7 +4,7 @@ Implements IETF draft-inadarei-api-health-check-06 compatible health responses.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -49,23 +49,23 @@ async def check_postgres(connection_string: str, timeout: float = 5.0) -> Health
             return HealthCheck(
                 component_name="postgres",
                 status="pass",
-                time=datetime.now(timezone.utc).isoformat(),
+                time=datetime.now(UTC).isoformat(),
                 output="Connected successfully",
             )
         finally:
             await conn.close()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return HealthCheck(
             component_name="postgres",
             status="fail",
-            time=datetime.now(timezone.utc).isoformat(),
+            time=datetime.now(UTC).isoformat(),
             output=f"Connection timeout after {timeout}s",
         )
     except Exception as e:
         return HealthCheck(
             component_name="postgres",
             status="fail",
-            time=datetime.now(timezone.utc).isoformat(),
+            time=datetime.now(UTC).isoformat(),
             output=f"Connection failed: {e!s}",
         )
 
@@ -90,23 +90,23 @@ async def check_dragonfly(host: str, port: int, timeout: float = 5.0) -> HealthC
             return HealthCheck(
                 component_name="dragonfly",
                 status="pass",
-                time=datetime.now(timezone.utc).isoformat(),
+                time=datetime.now(UTC).isoformat(),
                 output="Ping successful",
             )
         finally:
             await client.aclose()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return HealthCheck(
             component_name="dragonfly",
             status="fail",
-            time=datetime.now(timezone.utc).isoformat(),
+            time=datetime.now(UTC).isoformat(),
             output=f"Ping timeout after {timeout}s",
         )
     except Exception as e:
         return HealthCheck(
             component_name="dragonfly",
             status="fail",
-            time=datetime.now(timezone.utc).isoformat(),
+            time=datetime.now(UTC).isoformat(),
             output=f"Ping failed: {e!s}",
         )
 

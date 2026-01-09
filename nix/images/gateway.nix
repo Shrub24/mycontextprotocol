@@ -18,7 +18,10 @@ let
     ]
   );
   
-  venv = pythonSet.mkVirtualEnv "mycontextprotocol-gateway" workspace.deps.default;
+  venv = (pythonSet.mkVirtualEnv "mycontextprotocol-gateway" workspace.deps.default).overrideAttrs (old: {
+    # Ignore collision: llama-parse and llama-cloud-services both provide /bin/llama-parse
+    venvIgnoreCollisions = [ "bin/llama-parse" ];
+  });
 in
 pkgs.dockerTools.streamLayeredImage {
   name = "ghcr.io/shrub24/mycontextprotocol";

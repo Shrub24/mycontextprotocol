@@ -1,0 +1,14 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Deploy services with helmfile
+    dir: infra/k8s
+    cmds:
+      - helmfile sync
+
+  diff:
+    desc: Show what would change with helmfile
+    dir: infra/k8s
+    cmds:
+      - helmfile diff

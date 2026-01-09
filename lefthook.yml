@@ -1,40 +1,37 @@
 pre-commit:
   parallel: true
   commands:
-    format-check:
+    ruff-format:
       glob: "*.py"
+      exclude: "alembic/"
       run: ruff format --check {staged_files}
-    
-    lint:
+
+    ruff-lint:
       glob: "*.py"
+      exclude: "alembic/"
       run: ruff check {staged_files}
-    
-    typecheck:
+
+    basedpyright:
       glob: "*.py"
+      exclude: "alembic/"
       run: basedpyright {staged_files}
-    
+
+    yamllint:
+      glob: "**/*.{yaml,yml}"
+      exclude: "(alembic/|infra/k8s/charts/.*/templates/)"
+      run: yamllint {staged_files} || true
+      fail_text: "yamllint has issues (non-blocking)"
+
+    kube-linter:
+      glob: "infra/k8s/**/*.yaml"
+      run: kube-linter lint {staged_files} || true
+      fail_text: "kube-linter found issues (non-blocking)"
+
     helm-lint:
       glob: "infra/k8s/charts/**/*.yaml"
       run: cd infra/k8s && helm lint charts/*
-    
-    kube-lint:
-      glob: "infra/k8s/**/*.yaml"
-      run: kube-linter lint {staged_files}
-    
-    yaml-lint:
-      glob: "**/*.{yaml,yml}"
-      exclude: "infra/k8s/charts/**/templates/"
-      run: yamllint {staged_files}
 
 pre-push:
   commands:
     full-check:
       run: task check
-    
-    kubeconform:
-      run: |
-        cd infra/k8s
-        helm template charts/* | kubeconform \
-          -summary \
-          -schema-location default \
-          -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'

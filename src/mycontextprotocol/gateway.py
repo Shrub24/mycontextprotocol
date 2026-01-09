@@ -7,7 +7,7 @@ Provides REST API endpoints for:
 - /ingest - Document ingestion to memory stores
 """
 
-from typing import Literal, Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
@@ -16,12 +16,12 @@ from pydantic import BaseModel, Field
 from mycontextprotocol.config import Settings
 from mycontextprotocol.health import (
     HealthResponse,
-    check_postgres,
-    check_dragonfly,
     aggregate_health_status,
+    check_dragonfly,
+    check_postgres,
 )
 
-settings = Settings()
+settings = Settings.model_validate({})
 
 app = FastAPI(
     title="mycontextprotocol",
@@ -112,7 +112,7 @@ async def liveness():
 
 
 @app.get("/readyz")
-async def readiness():
+async def readiness() -> JSONResponse:
     checks = {}
 
     postgres_check = await check_postgres(
@@ -136,7 +136,13 @@ async def readiness():
             },
         )
 
-    return {"status": overall_status, "checks": {k: v.model_dump() for k, v in checks.items()}}
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": overall_status,
+            "checks": {k: v.model_dump() for k, v in checks.items()},
+        },
+    )
 
 
 @app.get("/health", response_model=HealthResponse)

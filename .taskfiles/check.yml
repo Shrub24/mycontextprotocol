@@ -1,0 +1,55 @@
+version: "3"
+
+tasks:
+  default:
+    desc: Run all quality checks (Python + infrastructure)
+    deps: [python, infra, kubeconform]
+
+  python:
+    desc: Run all Python quality checks in parallel
+    deps: [format, lint, typecheck]
+
+  infra:
+    desc: Run all infrastructure checks in parallel
+    deps: [helm, kube, yaml]
+
+  format:
+    internal: true
+    cmds:
+      - ruff format --check src tests
+
+  lint:
+    internal: true
+    cmds:
+      - ruff check src tests
+
+  typecheck:
+    internal: true
+    cmds:
+      - basedpyright src tests
+
+  helm:
+    internal: true
+    dir: infra/k8s
+    cmds:
+      - helm lint charts/*
+
+  kube:
+    internal: true
+    cmds:
+      - kube-linter lint infra/k8s/
+
+  yaml:
+    internal: true
+    cmds:
+      - yamllint .
+
+  kubeconform:
+    internal: true
+    dir: infra/k8s
+    cmds:
+      - |
+        helm template charts/* | kubeconform \
+          -summary \
+          -schema-location default \
+          -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'

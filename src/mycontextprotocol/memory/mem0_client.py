@@ -7,7 +7,6 @@ Uses CloudNativePG as backend store.
 from typing import Any
 
 from mem0 import Memory
-from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -29,7 +28,7 @@ def create_mem0_client() -> Memory:
     Returns:
         Memory client connected to PostgreSQL backend
     """
-    settings = Mem0Settings()
+    settings = Mem0Settings.model_validate({})
 
     config = {
         "vector_store": {

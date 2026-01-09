@@ -38,7 +38,7 @@ class OmniWorker:
         self.llamaindex = create_index()
 
         print(f"✓ Connected to Dragonfly at {self.redis_host}:{self.redis_port}")
-        print(f"✓ Initialized LlamaIndex store")
+        print("✓ Initialized LlamaIndex store")
 
     async def process_task(self, task_data: dict[str, Any]) -> None:
         """Process a single ingestion task.
