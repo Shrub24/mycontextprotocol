@@ -1,0 +1,11 @@
+continue_on_error: true
+formatter:
+  type: basic
+  indent: 2
+  line_ending: lf
+  max_line_length: 100
+  retain_line_breaks: true
+  trim_trailing_whitespace: true
+exclude:
+  - "alembic/"
+  - "infra/k8s/charts/.*/templates/"

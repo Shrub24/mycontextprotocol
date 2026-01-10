@@ -1,0 +1,16 @@
+version: "3"
+
+tasks:
+  default:
+    desc: Format all code (Python + YAML)
+    deps: [python, yaml]
+
+  python:
+    desc: Format Python files with ruff
+    cmds:
+      - ruff format src tests
+
+  yaml:
+    desc: Format YAML files with yamlfmt
+    cmds:
+      - yamlfmt .

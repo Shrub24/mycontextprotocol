@@ -6,17 +6,12 @@ tasks:
     deps: [python, infra, kubeconform]
 
   python:
-    desc: Run all Python quality checks in parallel
-    deps: [format, lint, typecheck]
+    desc: Run all Python linting and type checks in parallel
+    deps: [lint, typecheck]
 
   infra:
     desc: Run all infrastructure checks in parallel
     deps: [helm, kube, yaml]
-
-  format:
-    internal: true
-    cmds:
-      - ruff format --check src tests
 
   lint:
     internal: true
@@ -48,7 +43,7 @@ tasks:
     internal: true
     dir: infra/k8s
     cmds:
-      - |
+      - |-
         helm template charts/* | kubeconform \
           -summary \
           -schema-location default \

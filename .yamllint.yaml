@@ -1,0 +1,25 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 100
+    level: warning
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  document-start: disable
+  braces:
+    min-spaces-inside: 1
+    max-spaces-inside: 1
+  brackets:
+    min-spaces-inside: 1
+    max-spaces-inside: 1
+  colons:
+    max-spaces-before: 1
+  comments:
+    min-spaces-from-content: 1
+
+ignore:
+  - "alembic/"
+  - "infra/k8s/charts/.*/templates/"

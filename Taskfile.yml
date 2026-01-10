@@ -6,8 +6,10 @@ vars:
   FILES: '{{.CLI_ARGS | default (print .SRC_DIR " " .TEST_DIR)}}'
 
 includes:
-  check:
-    taskfile: .taskfiles/check.yml
+  format:
+    taskfile: .taskfiles/format.yml
+  lint:
+    taskfile: .taskfiles/lint.yml
     vars:
       FILES: "{{.CLI_ARGS}}"
   deploy:

@@ -67,6 +67,7 @@
               kubeconform
               kube-linter
               yamllint
+              yamlfmt
 
               docker
               trivy
