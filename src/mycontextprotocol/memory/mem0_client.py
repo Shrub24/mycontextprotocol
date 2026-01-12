@@ -48,6 +48,30 @@ def create_mem0_client() -> Memory:
     return Memory.from_config(config)
 
 
+def get_mem0_config() -> dict[str, Any]:
+    """Get Mem0 configuration dict.
+
+    Returns:
+        Dict with vector_store config for PostgreSQL + pgvector
+    """
+    settings = Mem0Settings.model_validate({})
+
+    return {
+        "vector_store": {
+            "provider": "pgvector",
+            "config": {
+                "dbname": settings.postgres_database,
+                "user": settings.postgres_user,
+                "password": settings.postgres_password,
+                "host": settings.postgres_host,
+                "port": settings.postgres_port,
+                "collection_name": "mem0",
+                "embedding_model_dims": 768,
+            },
+        },
+    }
+
+
 async def get_user_state(user_id: str, _session_id: str | None = None) -> dict[str, Any]:
     """Get user state from Mem0.
 

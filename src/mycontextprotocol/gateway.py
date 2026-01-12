@@ -7,8 +7,13 @@ Provides REST API endpoints for:
 - /ingest - Document ingestion to memory stores
 """
 
+import json
+import time
+import uuid
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
+import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -20,13 +25,35 @@ from mycontextprotocol.health import (
     check_dragonfly,
     check_postgres,
 )
+from mycontextprotocol.memory.lightrag_client import close_client as close_lightrag
+from mycontextprotocol.memory.lightrag_client import query_graph
+from mycontextprotocol.memory.llamaindex_store import query_documents
+from mycontextprotocol.memory.mem0_client import get_user_state
 
 settings = Settings.model_validate({})
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage startup and shutdown lifecycle."""
+    app.state.redis = redis.Redis(
+        host=settings.dragonfly_host,
+        port=settings.dragonfly_port,
+        password=settings.dragonfly_password if settings.dragonfly_password else None,
+        decode_responses=True,
+    )
+
+    yield
+
+    await app.state.redis.aclose()
+    await close_lightrag()
+
 
 app = FastAPI(
     title="mycontextprotocol",
     description="Memory-as-a-Service backend",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 
@@ -166,43 +193,83 @@ async def health():
 
 # Tier 1: STATE (Mem0) - Middleware pattern
 @app.post("/context/state", response_model=StateResponse)
-async def get_state(_request: StateRequest):
+async def get_state(request: StateRequest):
     """Get user state/preferences from Mem0.
 
     Called automatically by OpenWebUI middleware on most requests.
     Returns subjective user facts for context injection.
     """
-    raise HTTPException(status_code=501, detail="Mem0 integration pending")
+    try:
+        result = await get_user_state(request.user_id, request.session_id)
+        return StateResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve user state: {e}")
 
 
 # Tier 2: LONG (LlamaIndex) - Explicit tool
 @app.post("/context/query/documents", response_model=DocumentQueryResponse)
-async def query_documents(_request: DocumentQueryRequest):
+async def query_documents_endpoint(request: DocumentQueryRequest):
     """Search documents using LlamaIndex semantic search.
 
     Agent explicitly calls this when it needs document content.
     """
-    raise HTTPException(status_code=501, detail="LlamaIndex integration pending")
+    try:
+        start = time.perf_counter()
+        results = await query_documents(request.query, request.limit)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        return DocumentQueryResponse(results=results, query_time_ms=elapsed_ms, store="llamaindex")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query documents: {e}")
 
 
 # Tier 3: RELATIONAL (LightRAG) - Explicit tool
 @app.post("/context/query/graph", response_model=GraphQueryResponse)
-async def query_graph(_request: GraphQueryRequest):
+async def query_graph_endpoint(request: GraphQueryRequest):
     """Query knowledge graph using LightRAG.
 
     Agent explicitly calls this when it needs entity relationships.
     """
-    raise HTTPException(status_code=501, detail="LightRAG integration pending")
+    try:
+        start = time.perf_counter()
+        result = await query_graph(request.query, request.mode, request.limit)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        return GraphQueryResponse(
+            results=result["results"],
+            query_time_ms=elapsed_ms,
+            mode_used=request.mode,
+            store="lightrag",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query graph: {e}")
 
 
 # Ingestion endpoint
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(_request: IngestRequest):
+async def ingest(request: IngestRequest):
     """Ingest content into memory stores.
 
     Queues document for processing by Omni-Worker.
     """
-    raise HTTPException(status_code=501, detail="Ingestion queue pending")
+    try:
+        doc_id = str(uuid.uuid4())
+        task = {
+            "document_id": doc_id,
+            "content": request.content,
+            "metadata": request.metadata or {},
+            "stores": request.stores,
+        }
+
+        await app.state.redis.rpush("ingestion_queue", json.dumps(task))
+
+        return IngestResponse(
+            status="queued",
+            document_id=doc_id,
+            stores_updated=list(request.stores),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to queue ingestion: {e}")
 
 
 if __name__ == "__main__":

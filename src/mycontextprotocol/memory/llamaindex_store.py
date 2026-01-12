@@ -6,7 +6,9 @@ Uses PostgreSQL + pgvector backend.
 
 from typing import Any
 
+from llama_index.core import Settings as LlamaSettings
 from llama_index.core import StorageContext, VectorStoreIndex
+from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.vector_stores.postgres import PGVectorStore
 from pydantic_settings import BaseSettings
 
@@ -19,7 +21,8 @@ class LlamaIndexSettings(BaseSettings):
     postgres_database: str = "llamaindex"
     postgres_user: str = "app"
     postgres_password: str
-    openai_api_key: str
+    ollama_base_url: str = "http://ollama.mycontextprotocol.svc.cluster.local:11434"
+    ollama_model: str = "nomic-embed-text"
 
     model_config = {"env_prefix": "LLAMAINDEX_"}
 
@@ -31,6 +34,12 @@ def create_llamaindex_store() -> PGVectorStore:
         PGVectorStore connected to PostgreSQL backend
     """
     settings = LlamaIndexSettings.model_validate({})
+
+    embed_model = OllamaEmbedding(
+        model_name=settings.ollama_model,
+        base_url=settings.ollama_base_url,
+    )
+    LlamaSettings.embed_model = embed_model
 
     return PGVectorStore.from_params(
         host=settings.postgres_host,

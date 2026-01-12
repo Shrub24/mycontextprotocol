@@ -13,8 +13,11 @@ class Settings(BaseSettings):
     dragonfly_port: int = 6379
     dragonfly_password: str = ""
 
-    lightrag_host: str = "lightrag.mycontextprotocol.svc.cluster.local"
+    ollama_base_url: str = "http://ollama.mycontextprotocol.svc.cluster.local:11434"
+
+    lightrag_host: str = "lightrag.lightrag.svc.cluster.local"
     lightrag_port: int = 9621
+    lightrag_api_key: str = ""
 
     @property
     def postgres_connection_string(self) -> str:
