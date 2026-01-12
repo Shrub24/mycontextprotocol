@@ -39,6 +39,8 @@ def create_mem0_client() -> Memory:
                 "dbname": settings.postgres_database,
                 "user": settings.postgres_user,
                 "password": settings.postgres_password,
+                "collection_name": "mem0",
+                "embedding_model_dims": 768,
             },
         }
     }

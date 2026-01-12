@@ -16,4 +16,3 @@ exclude:
   - "alembic/**/*.yaml"
   - "infra/k8s/charts/worker/templates/*.yaml"
   - "infra/k8s/charts/gateway/templates/*.yaml"
-

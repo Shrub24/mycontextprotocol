@@ -15,7 +15,7 @@ class LlamaIndexSettings(BaseSettings):
     """LlamaIndex configuration from environment."""
 
     postgres_host: str = "postgresql-cluster-rw.database.svc.cluster.local"
-    postgres_port: int = 5432
+    postgres_port: str = "5432"
     postgres_database: str = "llamaindex"
     postgres_user: str = "app"
     postgres_password: str
@@ -24,22 +24,30 @@ class LlamaIndexSettings(BaseSettings):
     model_config = {"env_prefix": "LLAMAINDEX_"}
 
 
-def create_vector_store() -> PGVectorStore:
-    """Create PGVectorStore instance.
+def create_llamaindex_store() -> PGVectorStore:
+    """Create configured LlamaIndex PGVectorStore instance.
 
     Returns:
-        Configured PGVectorStore connected to PostgreSQL
+        PGVectorStore connected to PostgreSQL backend
     """
     settings = LlamaIndexSettings.model_validate({})
 
     return PGVectorStore.from_params(
         host=settings.postgres_host,
-        port=str(settings.postgres_port),
+        port=settings.postgres_port,
         database=settings.postgres_database,
         user=settings.postgres_user,
         password=settings.postgres_password,
         table_name="llamaindex_vectors",
-        embed_dim=1536,
+        embed_dim=768,
+        hybrid_search=True,
+        text_search_config="english",
+        hnsw_kwargs={
+            "hnsw_m": 16,
+            "hnsw_ef_construction": 64,
+            "hnsw_ef_search": 40,
+            "hnsw_dist_method": "vector_cosine_ops",
+        },
     )
 
 
@@ -49,7 +57,7 @@ def create_index() -> VectorStoreIndex:
     Returns:
         VectorStoreIndex for querying documents
     """
-    vector_store = create_vector_store()
+    vector_store = create_llamaindex_store()
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
     return VectorStoreIndex.from_vector_store(
