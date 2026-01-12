@@ -7,6 +7,8 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Literal
 
+import asyncpg
+import redis.asyncio as redis
 from pydantic import BaseModel, Field
 
 
@@ -40,9 +42,6 @@ async def check_postgres(connection_string: str, timeout: float = 5.0) -> Health
         HealthCheck result for PostgreSQL
     """
     try:
-        # Import here to avoid requiring asyncpg if not used
-        import asyncpg
-
         conn = await asyncio.wait_for(asyncpg.connect(connection_string), timeout=timeout)
         try:
             await conn.execute("SELECT 1")
@@ -82,8 +81,6 @@ async def check_dragonfly(host: str, port: int, timeout: float = 5.0) -> HealthC
         HealthCheck result for Dragonfly
     """
     try:
-        import redis.asyncio as redis
-
         client = redis.Redis(host=host, port=port, decode_responses=True)
         try:
             await asyncio.wait_for(client.ping(), timeout=timeout)  # type: ignore[misc]

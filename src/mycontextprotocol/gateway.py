@@ -166,7 +166,7 @@ async def health():
 
 # Tier 1: STATE (Mem0) - Middleware pattern
 @app.post("/context/state", response_model=StateResponse)
-async def get_state(request: StateRequest):
+async def get_state(_request: StateRequest):
     """Get user state/preferences from Mem0.
 
     Called automatically by OpenWebUI middleware on most requests.
@@ -177,7 +177,7 @@ async def get_state(request: StateRequest):
 
 # Tier 2: LONG (LlamaIndex) - Explicit tool
 @app.post("/context/query/documents", response_model=DocumentQueryResponse)
-async def query_documents(request: DocumentQueryRequest):
+async def query_documents(_request: DocumentQueryRequest):
     """Search documents using LlamaIndex semantic search.
 
     Agent explicitly calls this when it needs document content.
@@ -187,7 +187,7 @@ async def query_documents(request: DocumentQueryRequest):
 
 # Tier 3: RELATIONAL (LightRAG) - Explicit tool
 @app.post("/context/query/graph", response_model=GraphQueryResponse)
-async def query_graph(request: GraphQueryRequest):
+async def query_graph(_request: GraphQueryRequest):
     """Query knowledge graph using LightRAG.
 
     Agent explicitly calls this when it needs entity relationships.
@@ -197,7 +197,7 @@ async def query_graph(request: GraphQueryRequest):
 
 # Ingestion endpoint
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(request: IngestRequest):
+async def ingest(_request: IngestRequest):
     """Ingest content into memory stores.
 
     Queues document for processing by Omni-Worker.

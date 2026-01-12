@@ -69,7 +69,7 @@ class OmniWorker:
             self.llamaindex.insert_nodes(nodes)
             print(f"✓ Ingested to LlamaIndex: {len(nodes)} nodes")
 
-    async def _ingest_lightrag(self, content: str, metadata: dict[str, Any]) -> None:
+    async def _ingest_lightrag(self, _content: str, _metadata: dict[str, Any]) -> None:
         """Ingest document to LightRAG."""
         print("⚠ LightRAG ingestion not yet implemented")
 

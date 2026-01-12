@@ -7,8 +7,6 @@ helmDefaults:
   createNamespace: true
 
 repositories:
-  - name: bitnami
-    url: https://charts.bitnami.com/bitnami
   - name: cnpg
     url: https://cloudnative-pg.github.io/charts
   - name: kedacore
@@ -28,7 +26,7 @@ releases:
       - cnpg-system/cnpg-operator
     values:
       - values/cnpg-cluster/defaults.yaml
-      - values/cnpg-cluster/{{ .Environment.Name }}.yaml
+      - values/cnpg-cluster/{{ .Environment.Name}}.yaml
 
   - name: dragonfly-operator
     namespace: dragonfly-system
@@ -65,8 +63,11 @@ releases:
       - database/cnpg-cluster
       - queue/dragonfly
     values:
-      - values/gateway/defaults.yaml
+      - values/common.yaml
       - values/gateway/{{ .Environment.Name }}.yaml
+    secrets:
+      - secrets/common.yaml
+      - secrets/gateway/{{ .Environment.Name }}.yaml
 
   - name: worker
     namespace: mycontextprotocol
@@ -76,5 +77,8 @@ releases:
       - queue/dragonfly
       - keda/keda
     values:
-      - values/worker/defaults.yaml
+      - values/common.yaml
       - values/worker/{{ .Environment.Name }}.yaml
+    secrets:
+      - secrets/common.yaml
+      - secrets/worker/{{ .Environment.Name }}.yaml

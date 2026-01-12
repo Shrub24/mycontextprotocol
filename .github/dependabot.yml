@@ -28,7 +28,7 @@ updates:
           - "pytest*"
           - "ruff*"
           - "basedpyright*"
-    
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

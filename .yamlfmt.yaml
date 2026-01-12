@@ -6,6 +6,14 @@ formatter:
   max_line_length: 100
   retain_line_breaks: true
   trim_trailing_whitespace: true
+doublestar: true
+include:
+  - "**/*.yaml"
+  - "**/*.yml"
+  - "*.yml"
+  - "*.yaml"
 exclude:
-  - "alembic/"
-  - "infra/k8s/charts/.*/templates/"
+  - "alembic/**/*.yaml"
+  - "infra/k8s/charts/worker/templates/*.yaml"
+  - "infra/k8s/charts/gateway/templates/*.yaml"
+

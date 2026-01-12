@@ -74,6 +74,8 @@
               go-task
               lefthook
               opentofu
+              sops
+              age
             ];
 
             shellHook = ''

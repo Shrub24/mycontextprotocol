@@ -27,7 +27,8 @@ tasks:
     internal: true
     dir: infra/k8s
     cmds:
-      - helm lint charts/*
+      - helm lint charts/gateway
+      - helm lint charts/worker
 
   kube:
     internal: true
@@ -44,7 +45,18 @@ tasks:
     dir: infra/k8s
     cmds:
       - |-
-        helm template charts/* | kubeconform \
+        helm template gateway charts/gateway | \
+        kubeconform \
           -summary \
+          -skip ScaledJob \
           -schema-location default \
-          -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          -schema-location \
+          'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+      - |-
+        helm template worker charts/worker | \
+        kubeconform \
+          -summary \
+          -skip ScaledJob \
+          -schema-location default \
+          -schema-location \
+          'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'

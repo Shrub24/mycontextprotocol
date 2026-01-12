@@ -3,19 +3,36 @@ replicaCount: 2
 image:
   repository: ghcr.io/shrub24/mycontextprotocol
   tag: gateway-latest
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 service:
+  type: ClusterIP
   port: 80
   targetPort: 8000
 
+livenessProbe:
+  httpGet:
+    path: /livez
+    port: 8000
+  periodSeconds: 30
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8000
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 2
+
 resources:
   requests:
-    cpu: 100m
     memory: 256Mi
+    cpu: 250m
   limits:
+    memory: 512Mi
     cpu: 1000m
-    memory: 1Gi
 
 config:
   mem0:
@@ -23,18 +40,16 @@ config:
     postgresPort: "5432"
     postgresDatabase: mem0
     postgresUser: app
-  
+  dragonfly:
+    host: dragonfly.queue.svc.cluster.local
+    port: "6379"
   llamaindex:
     postgresHost: postgresql-cluster-rw.database.svc.cluster.local
     postgresPort: "5432"
     postgresDatabase: llamaindex
     postgresUser: app
-  
-  dragonfly:
-    host: dragonfly.queue.svc.cluster.local
-    port: "6379"
 
 secrets:
-  mem0PostgresPassword: "changeme"
-  llamaindexPostgresPassword: "changeme"
-  llamaindexOpenaiApiKey: "sk-..."
+  mem0PostgresPassword: "changeme-dev"
+  llamaindexPostgresPassword: "changeme-dev"
+  llamaindexOpenaiApiKey: "sk-dev-placeholder"

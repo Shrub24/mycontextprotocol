@@ -31,21 +31,21 @@ env:
   PORT: 9621
   WEBUI_TITLE: mycontextprotocol Graph RAG
   WEBUI_DESCRIPTION: LightRAG Knowledge Graph with PostgreSQL+AGE
-  
+
   LLM_BINDING: openai
   LLM_MODEL: gpt-4o-mini
   # TODO: LLM_BINDING_API_KEY must be set via lightrag-secrets
-  
+
   EMBEDDING_BINDING: openai
   EMBEDDING_MODEL: text-embedding-3-small
   EMBEDDING_DIM: 1536
   # TODO: EMBEDDING_BINDING_API_KEY must be set via lightrag-secrets
-  
+
   LIGHTRAG_KV_STORAGE: PGKVStorage
   LIGHTRAG_VECTOR_STORAGE: PGVectorStorage
   LIGHTRAG_GRAPH_STORAGE: PGGraphStorage
   LIGHTRAG_DOC_STATUS_STORAGE: PGDocStatusStorage
-  
+
   POSTGRES_HOST: postgresql-cluster-rw.database.svc.cluster.local
   POSTGRES_PORT: "5432"
   POSTGRES_USER: app

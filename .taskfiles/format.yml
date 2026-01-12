@@ -8,9 +8,10 @@ tasks:
   python:
     desc: Format Python files with ruff
     cmds:
+      - ruff check --fix src tests
       - ruff format src tests
 
   yaml:
     desc: Format YAML files with yamlfmt
     cmds:
-      - yamlfmt .
+      - yamlfmt

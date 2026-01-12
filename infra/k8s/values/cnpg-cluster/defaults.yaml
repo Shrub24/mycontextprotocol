@@ -1,9 +1,9 @@
 cluster:
   name: mycontextprotocol-db
   instances: 1
-  
+
   imageName: ghcr.io/shrub24/mycontextprotocol:postgres-age-latest
-  
+
   bootstrap:
     initdb:
       database: myapp
@@ -13,11 +13,11 @@ cluster:
       postInitSQL:
         - CREATE EXTENSION IF NOT EXISTS vector;
         - CREATE EXTENSION IF NOT EXISTS age;
-  
+
   storage:
     size: 10Gi
     storageClass: local-path
-  
+
   postgresql:
     parameters:
       max_connections: "100"
@@ -27,10 +27,10 @@ cluster:
       maintenance_work_mem: "128MB"
       shared_preload_libraries: "age,vector"
       search_path: "ag_catalog, \"$user\", public"
-    
+
     pg_hba:
       - host all all all scram-sha-256
-  
+
   resources:
     requests:
       memory: "512Mi"

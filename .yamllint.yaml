@@ -1,4 +1,3 @@
----
 extends: default
 
 rules:
@@ -10,16 +9,20 @@ rules:
     indent-sequences: true
   document-start: disable
   braces:
-    min-spaces-inside: 1
-    max-spaces-inside: 1
+    min-spaces-inside: 0
+    max-spaces-inside: 0
   brackets:
-    min-spaces-inside: 1
-    max-spaces-inside: 1
+    min-spaces-inside: 0
+    max-spaces-inside: 0
   colons:
     max-spaces-before: 1
   comments:
     min-spaces-from-content: 1
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
 
-ignore:
-  - "alembic/"
-  - "infra/k8s/charts/.*/templates/"
+ignore: |-
+  alembic/
+  .venv/
+  infra/k8s/charts/*/templates/
+  infra/k8s/secrets/

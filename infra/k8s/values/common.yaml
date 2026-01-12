@@ -1,0 +1,16 @@
+# Common configuration shared between gateway and worker charts
+
+config:
+  dragonfly:
+    host: dragonfly.queue.svc.cluster.local
+    port: "6379"
+
+  llamaindex:
+    postgresHost: postgresql-cluster-rw.database.svc.cluster.local
+    postgresPort: "5432"
+    postgresDatabase: llamaindex
+    postgresUser: app
+
+secrets:
+  llamaindexPostgresPassword: "changeme"
+  llamaindexOpenaiApiKey: "sk-..."

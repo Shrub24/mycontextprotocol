@@ -19,50 +19,73 @@ spec:
         app: ollama
     spec:
       initContainers:
-      - name: pull-model
-        image: ollama/ollama:latest
-        command:
-        - sh
-        - -c
-        - |
-          ollama serve &
-          sleep 5
-          ollama pull nomic-embed-text
-          killall ollama
-        volumeMounts:
-        - name: ollama-data
-          mountPath: /root/.ollama
+        - name: pull-model
+          image: ollama/ollama:0.4.0
+          command:
+            - sh
+            - -c
+            - |
+              ollama serve &
+              sleep 5
+              ollama pull nomic-embed-text
+              killall ollama
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+            - name: tmp
+              mountPath: /tmp
       containers:
-      - name: ollama
-        image: ollama/ollama:latest
-        ports:
-        - containerPort: 11434
-          name: http
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "500m"
-          limits:
-            memory: "2Gi"
-            cpu: "1000m"
-        volumeMounts:
-        - name: ollama-data
-          mountPath: /root/.ollama
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 11434
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 11434
-          initialDelaySeconds: 10
-          periodSeconds: 5
+        - name: ollama
+          image: ollama/ollama:0.4.0
+          ports:
+            - containerPort: 11434
+              name: http
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 5
       volumes:
-      - name: ollama-data
-        emptyDir: {}
+        - name: ollama-data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -73,8 +96,8 @@ spec:
   selector:
     app: ollama
   ports:
-  - port: 11434
-    targetPort: 11434
-    protocol: TCP
-    name: http
+    - port: 11434
+      targetPort: 11434
+      protocol: TCP
+      name: http
   type: ClusterIP

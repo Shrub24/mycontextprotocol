@@ -46,12 +46,12 @@ def create_mem0_client() -> Memory:
     return Memory.from_config(config)
 
 
-async def get_user_state(user_id: str, session_id: str | None = None) -> dict[str, Any]:
+async def get_user_state(user_id: str, _session_id: str | None = None) -> dict[str, Any]:
     """Get user state from Mem0.
 
     Args:
         user_id: User identifier
-        session_id: Optional session identifier
+        _session_id: Optional session identifier (unused, reserved for future use)
 
     Returns:
         Dict with memories and formatted context string
