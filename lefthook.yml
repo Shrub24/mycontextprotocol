@@ -1,51 +1,28 @@
 pre-commit:
   parallel: true
   commands:
-    # Python formatting (auto-fix)
-    ruff-format:
+    python:
       glob: "*.py"
       exclude: "alembic/"
-      run: ruff format {staged_files}
+      stage_fixed: true
+      run: |
+        ruff check --fix {staged_files}
+        ruff format {staged_files}
+        ruff check {staged_files}
+        basedpyright src tests
 
-    # Python linting
-    ruff-lint:
-      glob: "*.py"
-      exclude: "alembic/"
-      run: ruff check {staged_files} --fix
-
-    # Python type checking
-    basedpyright:
-      glob: "*.py"
-      exclude: "alembic/"
-      run: basedpyright {staged_files}
-
-    # YAML formatting (auto-fix)
-    yamlfmt:
+    yaml:
       glob: "**/*.{yaml,yml}"
       exclude: "(alembic/|infra/k8s/charts/.*/templates/)"
-      run: yamlfmt {staged_files}
+      stage_fixed: true
+      run: |
+        yamlfmt -conf .yamlfmt.yaml {staged_files}
+        yamllint -c .yamllint.yaml {staged_files}
 
-    # YAML linting
-    yamllint:
-      glob: "**/*.{yaml,yml}"
-      exclude: "(alembic/|infra/k8s/charts/.*/templates/)"
-      run: yamllint {staged_files} || true
-      fail_text: "yamllint has issues (non-blocking)"
-
-    # Kubernetes manifest linting
     kube-linter:
       glob: "infra/k8s/**/*.yaml"
-      run: kube-linter lint {staged_files} || true
-      fail_text: "kube-linter found issues (non-blocking)"
+      run: kube-linter lint {staged_files}
 
-    # Helm chart linting
     helm-lint:
       glob: "infra/k8s/charts/**/*.yaml"
       run: cd infra/k8s && helm lint charts/*
-
-pre-push:
-  commands:
-    format-check:
-      run: task format -- --check
-    lint-check:
-      run: task lint

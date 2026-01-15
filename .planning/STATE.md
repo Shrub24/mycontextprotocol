@@ -1,39 +1,57 @@
 # Project State
 
-**Last Updated:** 2026-01-15
+## Project Reference
 
-## Planning System
+See: .planning/PROJECT.md (updated 2026-01-15)
 
-This repo now uses **GSD planning docs** instead of beads. Current backlog and priorities live here and in `.planning/PLAN.md` (if present).
+**Core value:** Reliable, extensible memory systems that stay modular, lightweight, and decoupled while remaining modern and idiomatic.
+**Current focus:** Phase 1 — Tooling hygiene
 
-## Active Work
+## Current Position
 
-**In Progress:**
-- `mycontextprotocol-4r2` - Create Nix-based container images for gateway and worker (legacy beads issue; status tracked here now)
+Phase: 1 of 6 (Tooling hygiene)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-01-15 — Roadmap created
 
-## Backlog (Pending)
+Progress: ░░░░░░░░░░ 0%
 
-**Priority 1-2:**
-- `mycontextprotocol-j49` - Add Apache AGE extension to CloudNativePG
-- `mycontextprotocol-h6w` - Implement explicit memory access endpoints (LlamaIndex + LightRAG tools)
-- `mycontextprotocol-wqr` - Add Helm chart for gateway/worker deployments
-- `mycontextprotocol-tsv` - Test end-to-end local deployment
-- `mycontextprotocol-6hk` - Add k9s and stern to dev tooling
+## Performance Metrics
 
-**Priority 3:**
-- `mycontextprotocol-8km` - Fix existing yamllint issues in codebase
-- `mycontextprotocol-9u4` - Setup Dependabot for dependency updates
-- `mycontextprotocol-ajy` - Add MinIO for file storage (Phase 2/3)
-- `mycontextprotocol-b8y` - Implement Dragonfly context cache for Mem0 results (Phase 2/3)
-- `mycontextprotocol-dfy` - Implement query routing strategy (Phase 2/3)
+**Velocity:**
+- Total plans completed: 0
+- Average duration: —
+- Total execution time: 0 hours
 
-**Priority 4:**
-- `mycontextprotocol-7mm` - Create docs skeleton (getting-started, deployment)
-- `mycontextprotocol-98y` - Setup CI/CD pipeline for automated deployment
-- `mycontextprotocol-d75` - Setup OpenTofu IaC for cloud infrastructure
-- `mycontextprotocol-x6k` - Setup OpenTelemetry observability stack (SigNoz + Langfuse)
+**By Phase:**
 
-## Notes
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| — | — | — | — |
 
-- Legacy beads issues live in `.beads/issues.jsonl` for reference only.
-- Update this file when backlog changes or priorities shift.
+**Recent Trend:**
+- Last 5 plans: —
+- Trend: —
+
+## Accumulated Context
+
+### Decisions
+
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+(None yet)
+
+### Deferred Issues
+
+None yet.
+
+### Blockers/Concerns
+
+None yet.
+
+## Session Continuity
+
+Last session: 2026-01-15
+Stopped at: Roadmap created
+Resume file: None
