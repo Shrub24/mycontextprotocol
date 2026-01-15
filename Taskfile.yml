@@ -12,6 +12,10 @@ includes:
     taskfile: .taskfiles/lint.yml
     vars:
       FILES: "{{.CLI_ARGS}}"
+  test:
+    taskfile: .taskfiles/test.yml
+  typecheck:
+    taskfile: .taskfiles/typecheck.yml
   deploy:
     taskfile: .taskfiles/deploy.yml
 

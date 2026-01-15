@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     dragonfly_password: str = ""
 
     ollama_base_url: str = "http://ollama.mycontextprotocol.svc.cluster.local:11434"
+    ollama_model: str = "llama3.2"
 
     lightrag_host: str = "lightrag.lightrag.svc.cluster.local"
     lightrag_port: int = 9621

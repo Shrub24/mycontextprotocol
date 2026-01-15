@@ -3,18 +3,18 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    
+
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    
+
     uv2nix = {
       url = "github:pyproject-nix/uv2nix";
       inputs.pyproject-nix.follows = "pyproject-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    
+
     pyproject-build-systems = {
       url = "github:pyproject-nix/build-system-pkgs";
       inputs.pyproject-nix.follows = "pyproject-nix";
@@ -32,13 +32,37 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
+          workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+          
+          # Create overlay from workspace dependencies
+          workspaceOverlay = workspace.mkPyprojectOverlay {
+            sourcePreference = "wheel";
+          };
+          
+          # Get build-systems overlay
+          buildSystemsOverlay = pyproject-build-systems.overlays.default;
+          
+          # Compose overlays (build-systems first, then workspace)
+          overlay = pkgs.lib.composeManyExtensions [
+            buildSystemsOverlay
+            workspaceOverlay
+          ];
+          
+          python = pkgs.python313;
+          
+          # Create pythonSet with composed overlay
+          pythonSet = (pkgs.callPackage pyproject-nix.build.packages {
+            inherit python;
+          }).overrideScope overlay;
         in
         {
           gateway-image = pkgs.callPackage ./nix/images/gateway.nix {
             inherit pkgs pyproject-nix uv2nix pyproject-build-systems;
+            inherit workspace pythonSet;
           };
           worker-image = pkgs.callPackage ./nix/images/worker.nix {
             inherit pkgs pyproject-nix uv2nix pyproject-build-systems;
+            inherit workspace pythonSet;
           };
           postgres-age-image = pkgs.callPackage ./nix/images/postgres-age.nix {
             inherit pkgs;

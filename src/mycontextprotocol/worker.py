@@ -20,6 +20,7 @@ from mycontextprotocol.config import Settings
 from mycontextprotocol.memory.lightrag_client import insert_document
 from mycontextprotocol.memory.llamaindex_store import create_index
 from mycontextprotocol.memory.mem0_client import get_mem0_config
+from mycontextprotocol.worker_llm import DocumentExtractor
 
 
 class OmniWorker:
@@ -31,6 +32,7 @@ class OmniWorker:
         self.redis_client: Any = None
         self.llamaindex = None
         self.mem0: Memory | None = None
+        self.extractor: DocumentExtractor | None = None
         self.shutdown = False
 
     async def connect(self):
@@ -44,12 +46,14 @@ class OmniWorker:
 
         self.llamaindex = create_index()
         self.mem0 = Memory.from_config(get_mem0_config())
+        self.extractor = DocumentExtractor(self.settings)
 
         print(
             f"✓ Connected to Dragonfly at {self.settings.dragonfly_host}:{self.settings.dragonfly_port}"
         )
         print("✓ Initialized LlamaIndex store")
         print("✓ Initialized Mem0 client")
+        print("✓ Initialized LLM extractor")
 
     async def process_task(self, task_data: dict[str, Any]) -> None:
         """Process a single ingestion task.
@@ -64,14 +68,22 @@ class OmniWorker:
 
         print(f"Processing task: {len(content)} chars, stores: {stores}")
 
+        if self.extractor:
+            extracted = await self.extractor.extract(content, user_id)
+            metadata["summary"] = extracted.summary
+            metadata["entities"] = extracted.entities
+            metadata["topics"] = extracted.topics
+            print(f"✓ Extracted: {len(extracted.facts)} facts, {len(extracted.entities)} entities")
+
         if "llamaindex" in stores:
             await self._ingest_llamaindex(content, metadata)
 
         if "lightrag" in stores:
             await self._ingest_lightrag(content, metadata)
 
-        if user_id and self.mem0:
-            await self._extract_user_facts(content, user_id)
+        if user_id and self.mem0 and self.extractor:
+            extracted = await self.extractor.extract(content, user_id)
+            await self._extract_user_facts(extracted, user_id)
 
     async def _ingest_llamaindex(self, content: str, metadata: dict[str, Any]) -> None:
         """Ingest document to LlamaIndex."""
@@ -93,14 +105,18 @@ class OmniWorker:
             print(f"❌ LightRAG ingestion failed: {e}")
             raise
 
-    async def _extract_user_facts(self, content: str, user_id: str) -> None:
+    async def _extract_user_facts(self, extracted: Any, user_id: str) -> None:
         """Extract user-specific facts using Mem0."""
         try:
             if self.mem0 is None:
                 return
 
-            self.mem0.add(content, user_id=user_id)
-            print(f"✓ Extracted user facts for user_id={user_id}")
+            confidence_threshold = 0.6
+            for fact in extracted.facts:
+                if fact.confidence > confidence_threshold:
+                    self.mem0.add(fact.fact, user_id=user_id, metadata={"category": fact.category})
+
+            print(f"✓ Extracted {len(extracted.facts)} user facts for user_id={user_id}")
         except Exception as e:
             print(f"❌ Mem0 fact extraction failed: {e}")
             raise

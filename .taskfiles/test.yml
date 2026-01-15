@@ -1,0 +1,41 @@
+version: "3"
+
+vars:
+  TEST_DIR: tests
+  COV_MIN: 70
+
+tasks:
+  default:
+    desc: Run tests with pytest
+    cmds:
+      - uv run pytest {{.TEST_DIR}} -v
+
+  unit:
+    desc: Run unit tests only
+    cmds:
+      - uv run pytest {{.TEST_DIR}} -v -m "not integration"
+
+  integration:
+    desc: Run integration tests only
+    cmds:
+      - uv run pytest {{.TEST_DIR}} -v -m integration
+
+  cov:
+    desc: Run tests with coverage report
+    cmds:
+      - >
+        uv run pytest {{.TEST_DIR}}
+        --cov=src/mycontextprotocol
+        --cov-report=term-missing
+        --cov-report=html
+        --cov-fail-under={{.COV_MIN}}
+  watch:
+    desc: Run tests in watch mode
+    cmds:
+      - uv run pytest-watch {{.TEST_DIR}} -v
+
+
+  debug:
+    desc: Run tests with debugging enabled
+    cmds:
+      - uv run pytest {{.TEST_DIR}} -v -s --pdb
