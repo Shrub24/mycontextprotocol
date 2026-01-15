@@ -7,6 +7,10 @@ rules:
   indentation:
     spaces: 2
     indent-sequences: true
+  new-lines:
+    type: unix
+  new-line-at-end-of-file: enable
+  trailing-spaces: enable
   document-start: disable
   braces:
     min-spaces-inside: 0
