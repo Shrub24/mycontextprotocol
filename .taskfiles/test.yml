@@ -24,10 +24,7 @@ tasks:
     desc: Run tests with coverage report
     cmds:
       - >
-        uv run pytest {{.TEST_DIR}}
-        --cov=src/mycontextprotocol
-        --cov-report=term-missing
-        --cov-report=html
+        uv run pytest {{.TEST_DIR}} --cov=src/mycontextprotocol --cov-report=term-missing --cov-report=html
         --cov-fail-under={{.COV_MIN}}
   watch:
     desc: Run tests in watch mode

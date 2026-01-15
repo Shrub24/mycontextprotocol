@@ -22,8 +22,8 @@ Designed for single-user deployment on Oracle Cloud Free Tier, but runs anywhere
 
 - [Architecture](.agentinstructions/ARCHITECTURE.md) - Full system design and phases
 - [Development Workflow](.agentinstructions/DEVELOPMENT.md) - Agent workflow and patterns
-- [Code Style](CODE_STYLE.md) - Conventions and standards
-- [Agent Instructions](AGENTS.md) - Issue tracking with bd (beads)
+- [Code Style](.agentinstructions/CODE_STYLE.md) - Conventions and standards
+- [Agent Instructions](AGENTS.md) - GSD planning docs and workflow
 
 ## Quick Start
 
@@ -46,8 +46,7 @@ uv sync
 task check          # Format + lint + typecheck
 
 # 4. Check available work
-bd ready
-bd show <issue-id>
+cat .planning/STATE.md
 
 # 5. Database operations (Phase 1.5+)
 task db:autogenerate -- "migration message"  # Generate from models
@@ -67,8 +66,8 @@ helmfile sync
 | `task lint` | Check code quality with ruff |
 | `task typecheck` | Verify types with basedpyright |
 | `task db:upgrade` | Apply database migrations |
-| `bd ready` | Show available issues |
-| `bd update <id> --status in_progress` | Claim work |
+| `cat .planning/STATE.md` | Review backlog and priorities |
+| `cat .planning/PLAN.md` | Review active work plan |
 
 ## Project Structure
 
@@ -100,7 +99,6 @@ This project uses:
 - **lefthook** - Git hooks (respects Nix PATH)
 - **Taskfile** - Task automation (YAML-based, simpler than Make)
 - **Alembic** - Database migrations (from SQLAlchemy models)
-- **bd (beads)** - Issue tracking
 - **Python 3.13** - Latest stable Python
 
 See [.agentinstructions/DEVELOPMENT.md](.agentinstructions/DEVELOPMENT.md) for complete workflow.
@@ -119,9 +117,9 @@ See [.agentinstructions/ARCHITECTURE.md](.agentinstructions/ARCHITECTURE.md) for
 ## Contributing
 
 This is a personal project, but contributions welcome. Follow:
-1. Read [CODE_STYLE.md](CODE_STYLE.md)
-2. Check `bd ready` for available work
-3. Claim an issue: `bd update <id> --status in_progress`
+1. Read [.agentinstructions/CODE_STYLE.md](.agentinstructions/CODE_STYLE.md)
+2. Review `.planning/STATE.md` for backlog
+3. Track active work in `.planning/PLAN.md`
 4. Submit PR
 
 ## License

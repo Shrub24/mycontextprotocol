@@ -15,9 +15,15 @@ This project follows modern Python 3.13+ conventions with minimal, explicit code
 ### Toolchain
 - **Formatter/Linter:** [Ruff](https://github.com/astral-sh/ruff) (replaces Black, isort, Flake8)
 - **Type Checker:** [basedpyright](https://github.com/DetachHead/basedpyright) (fast, LSP-friendly)
+- **Git Hooks:** Lefthook tasks for format/lint/typecheck (see `lefthook.yml`)
 - **Validation:** [Pydantic v2](https://github.com/pydantic/pydantic) at I/O boundaries only
 
 Configuration lives in `pyproject.toml`.
+
+**Run before review:**
+- `task format`
+- `task lint`
+- `task typecheck`
 
 ### Type Hints
 **Required** on all public APIs and function signatures. Use modern syntax:
@@ -81,7 +87,19 @@ def store_memory(memory: Memory) -> None:
     db.insert(memory)
 ```
 
-### Error Handling
+### Import Organization
+
+- All imports must be at the top of the file (after module docstring).
+- Order: standard library → third-party → local modules.
+- Keep import groups separated by a blank line.
+
+### Type Safety
+
+- Avoid `Any` unless there is no reasonable alternative.
+- Prefer explicit types, Protocols, or narrow casts with justification.
+- Avoid `# noqa` and `# pyright: ignore` unless clearly documented and necessary.
+
+## Error Handling
 - **Explicit exceptions at boundaries:** Catch and handle at API/queue/file boundaries
 - **Let it crash internally:** Don't catch exceptions just to re-raise them
 - **Use standard exceptions:** `ValueError`, `TypeError`, `KeyError` over custom ones
