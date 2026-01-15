@@ -16,12 +16,15 @@ pre-commit:
       exclude: "(alembic/|infra/k8s/charts/.*/templates/)"
       stage_fixed: true
       run: |
+        if [ -z "{staged_files}" ]; then exit 0; fi
         yamlfmt -conf .yamlfmt.yaml {staged_files}
         yamllint -c .yamllint.yaml {staged_files}
 
     kube-linter:
       glob: "infra/k8s/**/*.yaml"
-      run: kube-linter lint {staged_files}
+      run: |
+        if [ -z "{staged_files}" ]; then exit 0; fi
+        kube-linter lint {staged_files}
 
     helm-lint:
       glob: "infra/k8s/charts/**/*.yaml"
