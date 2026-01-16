@@ -21,9 +21,11 @@
 ## Task Commands
 
 ```bash
-task check              # Run all quality checks (Python + infrastructure)
-task check:python       # Run Python checks only (format + lint + typecheck)
-task check:infra        # Run infrastructure checks only (helm + kube + yaml)
+task format             # Auto-fix formatting (ruff + yamlfmt)
+task lint               # Full lint suite (ruff, basedpyright, yamllint, kube/helm)
+task typecheck          # Run basedpyright on src + tests
+task test               # Run tests
+
 task install            # Install Python dependencies (uv sync)
 task dev                # Run FastAPI gateway with hot-reload
 task deploy             # Deploy services with helmfile
@@ -37,9 +39,10 @@ task clean              # Remove build artifacts and caches
 
 ### Code Quality
 ```bash
-ruff format .                    # Auto-format code
-ruff check --fix .               # Lint and auto-fix
-basedpyright                     # Type check
+ruff check --fix src tests       # Lint and auto-fix
+ruff format src tests            # Format code
+ruff check src tests             # Lint without fixing
+basedpyright src tests           # Type check
 pytest --cov                     # Run tests with coverage
 ```
 
@@ -96,12 +99,11 @@ uv run alembic upgrade head
 ## Git Hooks (Lefthook)
 
 **Pre-commit** runs checks on staged files (fast, incremental):
-- `ruff format --check` (Python files only)
-- `ruff check` (Python files only)
+- `ruff check --fix` → `ruff format` → `ruff check` (Python files only)
 - `basedpyright` (Python files only)
+- `yamlfmt` + `yamllint` (YAML files only)
+- `kube-linter` (infra YAML only)
 - `helm lint` (Helm charts only)
-
-**Pre-push** runs `task check` (comprehensive, full codebase)
 
 **Disabling checks temporarily:**
 Edit `lefthook.yml` and add `skip: true` to any command.
