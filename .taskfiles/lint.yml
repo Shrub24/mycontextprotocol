@@ -3,45 +3,46 @@ version: "3"
 tasks:
   default:
     desc: Run all quality checks (Python + infrastructure)
-    deps: [python, infra, kubeconform]
+    cmds:
+      - task lint:python
+      - task lint:yaml
+      - task lint:kube
+      - task lint:helm
+      - task lint:kubeconform
 
   python:
-    desc: Run all Python linting and type checks in parallel
-    deps: [lint, typecheck]
+    desc: Run all Python linting and type checks
+    cmds:
+      - ruff check src tests
+      - basedpyright src tests
 
   infra:
     desc: Run all infrastructure checks in parallel
     deps: [helm, kube, yaml]
 
   lint:
-    internal: true
     cmds:
       - ruff check src tests
 
   typecheck:
-    internal: true
     cmds:
       - basedpyright src tests
 
   helm:
-    internal: true
     dir: infra/k8s
     cmds:
       - helm lint charts/gateway
       - helm lint charts/worker
 
   kube:
-    internal: true
     cmds:
       - kube-linter lint infra/k8s/
 
   yaml:
-    internal: true
     cmds:
       - yamllint .
 
   kubeconform:
-    internal: true
     dir: infra/k8s
     cmds:
       - |-

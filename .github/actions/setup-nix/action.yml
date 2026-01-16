@@ -1,0 +1,41 @@
+name: Setup Nix (Lix + Cachix)
+description: Install Lix, decrypt Cachix token via SOPS, and configure Cachix
+
+inputs:
+  ci_age_key:
+    description: AGE private key for decrypting CI secrets
+    required: true
+  skip_push:
+    description: Skip pushing to Cachix (e.g., on PRs)
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Lix
+      uses: samueldr/lix-gha-installer-action@f526e761e1ad201b0f4231f61a2a569f17bcc2ac
+      with:
+        extra_nix_config: |
+          extra-substituters = https://shrub24.cachix.org
+          extra-substituters = https://cache.nixos.org
+          extra-trusted-public-keys = shrub24.cachix.org-1:QMgWTCaMI7DSDdmvmKrsQ9cQwwTfw3zWRFz2yuxeriU=
+          extra-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+
+    - name: Decrypt Cachix token
+      shell: bash
+      env:
+        CI_AGE_KEY: ${{ inputs.ci_age_key }}
+      run: |
+        mkdir -p .github/secrets
+        echo "$CI_AGE_KEY" > .github/secrets/ci-age.key
+        nix develop --command sops -d .github/secrets/cachix.sops.json > /tmp/cachix.json
+        CACHIX_AUTH_TOKEN=$(python -c "import json; print(json.load(open('/tmp/cachix.json'))['CACHIX_AUTH_TOKEN'])")
+        echo "CACHIX_AUTH_TOKEN=$CACHIX_AUTH_TOKEN" >> $GITHUB_ENV
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v15
+      with:
+        name: shrub24
+        authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+        skipPush: ${{ inputs.skip_push }}

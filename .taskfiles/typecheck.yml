@@ -8,7 +8,7 @@ tasks:
   typecheck:
     desc: Run type checking with basedpyright
     cmds:
-      - uv run basedpyright {{.SRC_DIR}} {{.TEST_DIR}}
+      - basedpyright {{.SRC_DIR}} {{.TEST_DIR}}
 
   typecheck:src:
     desc: Run type checking on source code only
