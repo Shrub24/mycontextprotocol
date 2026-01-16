@@ -10,6 +10,7 @@ jobs:
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    environment: ci
 
     steps:
       - uses: actions/checkout@v6
@@ -53,6 +54,7 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    environment: ci
 
     steps:
       - uses: actions/checkout@v4
