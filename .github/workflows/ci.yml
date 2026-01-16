@@ -18,20 +18,11 @@ jobs:
       - name: Setup Nix + Cachix
         uses: ./.github/actions/setup-nix
         with:
-          ci_age_key: ${{ secrets.CI_AGE_KEY }}
+          cachix_auth_token: ${{ github.event_name == 'push' && secrets.CACHIX_AUTH_TOKEN || '' }}
           skip_push: ${{ github.event_name == 'pull_request' }}
 
-      - name: Setup dev environment
-        run: nix develop --command bash -c "uv sync"
-
-      - name: Format check
-        run: nix develop --command bash -c "task format"
-
-      - name: Lint
-        run: nix develop --command bash -c "task lint"
-
-      - name: Type check
-        run: nix develop --command bash -c "task typecheck"
+      - name: Quality checks
+        run: nix develop --command bash -c "uv sync && task format && task lint && task typecheck"
 
   test:
     name: Tests
@@ -39,20 +30,16 @@ jobs:
     environment: ci
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Nix + Cachix
         uses: ./.github/actions/setup-nix
         with:
-          ci_age_key: ${{ secrets.CI_AGE_KEY }}
+          cachix_auth_token: ${{ github.event_name == 'push' && secrets.CACHIX_AUTH_TOKEN || '' }}
           skip_push: ${{ github.event_name == 'pull_request' }}
 
-      - name: Setup dev environment
-        run: |
-          nix develop --command bash -c "uv sync"
-
       - name: Run tests
-        run: nix develop --command bash -c "task test:cov"
+        run: nix develop --command bash -c "uv sync && task test:cov"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v5

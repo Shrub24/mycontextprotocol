@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-01-15)
 Phase: 1 of 6 (Tooling hygiene)
 Plan: 3 of 3 in current phase
 Status: Phase complete
-Last activity: 2026-01-16 — Completed 01-03-PLAN.md
+Last activity: 2026-01-21 — Simplified Cachix auth setup
 
 Progress: ██░░░░░░░░ 19%
 
@@ -41,8 +41,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - Adopt nix2container for OCI images with multi-layer caching
-- Use Lix + Cachix in CI with SOPS-managed token
-- Store CI age key in environment secrets (ci)
+- Use Lix + Cachix in CI with GH secret token (push-only)
+- Configure Cachix pull-only before Nix builds
 - DRY CI Nix setup into a composite action
 - Pin Lix installer action to a commit
 

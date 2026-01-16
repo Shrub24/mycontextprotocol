@@ -6,11 +6,19 @@ cluster:
 
   bootstrap:
     initdb:
-      database: myapp
-      owner: myapp
+      database: mycontextprotocol
+      owner: app
       secret:
         name: postgresql-credentials
       postInitSQL:
+        - CREATE DATABASE mem0 OWNER app;
+        - CREATE DATABASE llamaindex OWNER app;
+        - CREATE DATABASE lightrag OWNER app;
+        - \connect mem0
+        - CREATE EXTENSION IF NOT EXISTS vector;
+        - \connect llamaindex
+        - CREATE EXTENSION IF NOT EXISTS vector;
+        - \connect lightrag
         - CREATE EXTENSION IF NOT EXISTS vector;
         - CREATE EXTENSION IF NOT EXISTS age;
 
