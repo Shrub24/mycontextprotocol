@@ -19,8 +19,10 @@ jobs:
         uses: samueldr/lix-gha-installer-action@master
         with:
           extra_nix_config: |
-            extra-substituters = https://shrub24.cachix.org https://cache.nixos.org
-            extra-trusted-public-keys = shrub24.cachix.org-1:QMgWTCaMI7DSDdmvmKrsQ9cQwwTfw3zWRFz2yuxeriU= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+            extra-substituters = https://shrub24.cachix.org
+            extra-substituters = https://cache.nixos.org
+            extra-trusted-public-keys = shrub24.cachix.org-1:QMgWTCaMI7DSDdmvmKrsQ9cQwwTfw3zWRFz2yuxeriU=
+            extra-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
 
       - name: Decrypt Cachix token
         env:
@@ -63,8 +65,10 @@ jobs:
         uses: samueldr/lix-gha-installer-action@master
         with:
           extra_nix_config: |
-            extra-substituters = https://shrub24.cachix.org https://cache.nixos.org
-            extra-trusted-public-keys = shrub24.cachix.org-1:QMgWTCaMI7DSDdmvmKrsQ9cQwwTfw3zWRFz2yuxeriU= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+            extra-substituters = https://shrub24.cachix.org
+            extra-substituters = https://cache.nixos.org
+            extra-trusted-public-keys = shrub24.cachix.org-1:QMgWTCaMI7DSDdmvmKrsQ9cQwwTfw3zWRFz2yuxeriU=
+            extra-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
 
       - name: Decrypt Cachix token
         env:
