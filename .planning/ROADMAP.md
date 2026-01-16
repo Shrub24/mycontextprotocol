@@ -16,7 +16,7 @@ None
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Tooling hygiene** - Finalize pre-commit formatting/linting gates
+- [x] **Phase 1: Tooling hygiene** - Finalize pre-commit formatting/linting gates
 - [ ] **Phase 2: Memory store initialization** - Pgvector/AGE setup + Mem0/LlamaIndex/LightRAG tables
 - [ ] **Phase 3: Ingest flow** - Wire gateway ingestion to worker persistence
 - [ ] **Phase 4: Memory access endpoints** - Tool/middleware retrieval flows (no UI)
@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01: Finalize lefthook formatter/linter ordering and staging
 - [x] 01-02: Resolve remaining lint/format config mismatches
-- [ ] 01-03: Verify taskfile/CI integration consistency
+- [x] 01-03: Verify taskfile/CI integration consistency
 
 ### Phase 2: Memory store initialization
 **Goal**: Initialize Postgres schemas/tables for all memory tiers
@@ -99,7 +99,7 @@ Phases execute in numeric order: 1 → 2 → 2.1 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Tooling hygiene | 2/3 | In progress | - |
+| 1. Tooling hygiene | 3/3 | Complete | 2026-01-16 |
 | 2. Memory store initialization | 0/3 | Not started | - |
 | 3. Ingest flow | 0/3 | Not started | - |
 | 4. Memory access endpoints | 0/3 | Not started | - |
