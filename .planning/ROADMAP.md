@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01: Finalize lefthook formatter/linter ordering and staging
-- [ ] 01-02: Resolve remaining lint/format config mismatches
+- [x] 01-02: Resolve remaining lint/format config mismatches
 - [ ] 01-03: Verify taskfile/CI integration consistency
 
 ### Phase 2: Memory store initialization
@@ -99,7 +99,7 @@ Phases execute in numeric order: 1 → 2 → 2.1 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Tooling hygiene | 1/3 | In progress | - |
+| 1. Tooling hygiene | 2/3 | In progress | - |
 | 2. Memory store initialization | 0/3 | Not started | - |
 | 3. Ingest flow | 0/3 | Not started | - |
 | 4. Memory access endpoints | 0/3 | Not started | - |

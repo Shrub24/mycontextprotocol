@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-01-15)
 ## Current Position
 
 Phase: 1 of 6 (Tooling hygiene)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-15 — Completed 01-01-PLAN.md
+Last activity: 2026-01-16 — Completed 01-02-PLAN.md
 
-Progress: █░░░░░░░░░ 6%
+Progress: █░░░░░░░░░ 12%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 4 min
-- Total execution time: 0.07 hours
+- Total plans completed: 2
+- Average duration: 15 min
+- Total execution time: 0.48 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Tooling hygiene | 1 | 4 min | 4 min |
+| 1. Tooling hygiene | 2 | 29 min | 15 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (4 min)
-- Trend: Starting baseline
+- Last 5 plans: 01-02 (25 min), 01-01 (4 min)
+- Trend: Building baseline
 
 ## Accumulated Context
 
@@ -40,7 +40,9 @@ Progress: █░░░░░░░░░ 6%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-(None yet)
+- Adopt nix2container for OCI images with multi-layer caching
+- Use Lix + Cachix in CI with SOPS-managed token
+- Store CI age key in environment secrets (ci)
 
 ### Deferred Issues
 
@@ -52,6 +54,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-15T13:31:53Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-01-16T11:10:41Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
