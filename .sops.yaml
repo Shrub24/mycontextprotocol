@@ -1,0 +1,7 @@
+creation_rules:
+  - path_regex: ^infra/k8s/secrets/.*\.ya?ml$
+    encrypted_regex: "^(data|stringData)$"
+    age: age1vn6seyuq3zyr6jlnjt0j57ha9npxy7hx6k9yxmnxsvfc4t2s3e5qj23xm
+  - path_regex: ^\.github/secrets/.*\.sops\.json$
+    encrypted_regex: "^(CACHIX_AUTH_TOKEN)$"
+    age: age1yx5kz4q2xc8gtnx7sswzgyy3n9g3yz4ct9ecm9rd7p2n2ah6eyvsgn94cg

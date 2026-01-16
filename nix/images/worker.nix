@@ -5,6 +5,7 @@
   pyproject-build-systems,
   workspace,
   pythonSet,
+  nix2containerLib,
   ...
 }:
 let
@@ -18,15 +19,22 @@ let
     paths = [ baseVenv ];
     ignoreCollisions = true;  # llama-parse and llama-cloud-services both provide llama-parse binary
   };
+
+  root = pkgs.buildEnv {
+    name = "worker-root";
+    paths = [ venv ];
+    pathsToLink = [ "/venv" ];
+  };
 in
-  pkgs.dockerTools.streamLayeredImage {
+  nix2containerLib.buildImage {
     name = "ghcr.io/shrub24/mycontextprotocol";
     tag = "worker-latest";
 
-    contents = [ venv ];
+    copyToRoot = root;
+    maxLayers = 100;
 
     config = {
-      Cmd = ["${venv}/bin/python" "-m" "mycontextprotocol.worker"];
+      Cmd = ["/venv/bin/python" "-m" "mycontextprotocol.worker"];
       Env = [
         "PYTHONUNBUFFERED=1"
         "PYTHONDONTWRITEBYTECODE=1"
@@ -41,13 +49,9 @@ in
       StopSignal = "SIGTERM";
     };
 
-    fakeRootCommands = ''
+    runAsRoot = ''
       mkdir -p /app /tmp
       chmod 1777 /tmp
       chown -R 65534:65534 /app
     '';
-
-    enableFakechroot = true;
-    includeStorePaths = false;
-    maxLayers = 100;
   }

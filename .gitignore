@@ -44,6 +44,7 @@ kubeconfig
 .env.local
 credentials.json
 secrets/
+ci-age.key
 
 # IDE
 .idea/

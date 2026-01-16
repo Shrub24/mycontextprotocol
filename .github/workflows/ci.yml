@@ -14,10 +14,29 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
+      - name: Install Lix
+        uses: samueldr/lix-gha-installer-action@master
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            extra-substituters = https://shrub24.cachix.org https://cache.nixos.org
+            extra-trusted-public-keys = shrub24.cachix.org-1:QMgWTCaMI7DSDdmvmKrsQ9cQwwTfw3zWRFz2yuxeriU= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+
+      - name: Decrypt Cachix token
+        env:
+          CI_AGE_KEY: ${{ secrets.CI_AGE_KEY }}
+        run: |
+          mkdir -p .github/secrets
+          echo "$CI_AGE_KEY" > .github/secrets/ci-age.key
+          nix develop --command bash -c "sops -d .github/secrets/cachix.sops.json > /tmp/cachix.json"
+          CACHIX_AUTH_TOKEN=$(python -c "import json; print(json.load(open('/tmp/cachix.json'))['CACHIX_AUTH_TOKEN'])")
+          echo "CACHIX_AUTH_TOKEN=$CACHIX_AUTH_TOKEN" >> $GITHUB_ENV
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: shrub24
+          authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+          skipPush: ${{ github.event_name == 'pull_request' }}
 
       - name: Setup dev environment
         run: nix develop --command bash -c "uv sync"
@@ -38,10 +57,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
+      - name: Install Lix
+        uses: samueldr/lix-gha-installer-action@master
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            extra-substituters = https://shrub24.cachix.org https://cache.nixos.org
+            extra-trusted-public-keys = shrub24.cachix.org-1:QMgWTCaMI7DSDdmvmKrsQ9cQwwTfw3zWRFz2yuxeriU= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+
+      - name: Decrypt Cachix token
+        env:
+          CI_AGE_KEY: ${{ secrets.CI_AGE_KEY }}
+        run: |
+          mkdir -p .github/secrets
+          echo "$CI_AGE_KEY" > .github/secrets/ci-age.key
+          nix develop --command bash -c "sops -d .github/secrets/cachix.sops.json > /tmp/cachix.json"
+          CACHIX_AUTH_TOKEN=$(python -c "import json; print(json.load(open('/tmp/cachix.json'))['CACHIX_AUTH_TOKEN'])")
+          echo "CACHIX_AUTH_TOKEN=$CACHIX_AUTH_TOKEN" >> $GITHUB_ENV
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: shrub24
+          authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+          skipPush: ${{ github.event_name == 'pull_request' }}
 
       - name: Setup dev environment
         run: |

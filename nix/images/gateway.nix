@@ -5,6 +5,7 @@
   pyproject-build-systems,
   workspace,
   pythonSet,
+  nix2containerLib,
   ...
 }:
 let
@@ -14,15 +15,22 @@ let
     # Ignore collision between llama-parse and llama-cloud-services packages
     venvIgnoreCollisions = [ "*" ];
   });
+
+  root = pkgs.buildEnv {
+    name = "gateway-root";
+    paths = [ venv ];
+    pathsToLink = [ "/venv" ];
+  };
 in
-  pkgs.dockerTools.streamLayeredImage {
+  nix2containerLib.buildImage {
     name = "ghcr.io/shrub24/mycontextprotocol";
     tag = "gateway-latest";
 
-    contents = [ venv ];
+    copyToRoot = root;
+    maxLayers = 100;
 
     config = {
-      Cmd = ["${venv}/bin/python" "-m" "mycontextprotocol.gateway"];
+      Cmd = ["/venv/bin/python" "-m" "mycontextprotocol.gateway"];
       ExposedPorts = {
         "8000/tcp" = {};
       };
@@ -38,7 +46,7 @@ in
         "org.opencontainers.image.licenses" = "MIT";
       };
       Healthcheck = {
-        Test = ["CMD" "${venv}/bin/python" "-c" "import urllib.request; urllib.request.urlopen('http://localhost:8000/livez').read()"];
+        Test = ["CMD" "/venv/bin/python" "-c" "import urllib.request; urllib.request.urlopen('http://localhost:8000/livez').read()"];
         Interval = 30000000000;
         Timeout = 5000000000;
         Retries = 3;
@@ -46,13 +54,9 @@ in
       };
     };
 
-    fakeRootCommands = ''
+    runAsRoot = ''
       mkdir -p /app /tmp
       chmod 1777 /tmp
       chown -R 65534:65534 /app
     '';
-
-    enableFakechroot = true;
-    includeStorePaths = false;
-    maxLayers = 100;
   }
