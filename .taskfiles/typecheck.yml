@@ -5,22 +5,22 @@ vars:
   TEST_DIR: tests
 
 tasks:
-  typecheck:
+  default:
     desc: Run type checking with basedpyright
     cmds:
       - basedpyright {{.SRC_DIR}} {{.TEST_DIR}}
 
-  typecheck:src:
+  src:
     desc: Run type checking on source code only
     cmds:
       - uv run basedpyright {{.SRC_DIR}}
 
-  typecheck:tests:
+  tests:
     desc: Run type checking on tests only
     cmds:
       - uv run basedpyright {{.TEST_DIR}}
 
-  typecheck:watch:
+  watch:
     desc: Run type checking in watch mode
     cmds:
       - uv run basedpyright --watch {{.SRC_DIR}} {{.TEST_DIR}}
