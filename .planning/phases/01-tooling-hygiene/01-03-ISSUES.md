@@ -6,8 +6,14 @@
 
 ## Open Issues
 
+[None]
+
+## Resolved Issues
+
 ### UAT-001: `task typecheck` command missing
 
+**Resolved:** 2026-01-21 - Fixed in Taskfile typecheck defaults
+**Commit:** pending
 **Discovered:** 2026-01-21
 **Phase/Plan:** 01-03
 **Severity:** Major
@@ -19,10 +25,6 @@
 1. Run `task --list`
 2. Observe `typecheck:typecheck:*` entries but no `typecheck`
 3. Run `task typecheck` → "Task \"typecheck\" does not exist"
-
-## Resolved Issues
-
-[None yet]
 
 ---
 
