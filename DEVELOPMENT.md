@@ -61,6 +61,11 @@ stern gateway                                         # Multi-pod logs
 kubectl port-forward svc/gateway 8000:80              # Port forward
 ```
 
+Notes:
+- Default app namespace is `mycontextprotocol`
+- CNPG generates the app secret named `<cluster>-app`
+- Helm charts should not pin explicit versions unless directed
+
 ### Python Environment
 ```bash
 uv sync                          # Install dependencies

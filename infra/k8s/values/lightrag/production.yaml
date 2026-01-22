@@ -8,7 +8,7 @@ resources:
     cpu: 2000m
 
 persistence:
-  data:
+  ragStorage:
     size: 20Gi
-  cache:
+  inputs:
     size: 10Gi

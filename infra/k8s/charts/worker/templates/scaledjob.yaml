@@ -1,8 +1,10 @@
+{{- $config := default (dict) .Values.config -}}
+{{- $postgres := default (dict) (get $config "postgres") -}}
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
   name: worker
-  namespace: mycontextprotocol
+  namespace: {{ .Release.Namespace }}
 spec:
   minReplicaCount: {{ .Values.scaledjob.minReplicaCount }}
   maxReplicaCount: {{ .Values.scaledjob.maxReplicaCount }}
@@ -16,21 +18,41 @@ spec:
       spec:
         restartPolicy: OnFailure
         containers:
-        - name: worker
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          envFrom:
-          - configMapRef:
-              name: worker-config
-          - secretRef:
-              name: worker-secrets
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+          - name: worker
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            envFrom:
+              - configMapRef:
+                  name: worker-config
+              {{- include "mcp-lib.externalSecrets.envFrom" . | nindent 14 }}
+            env:
+              - name: MEM0_POSTGRES_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ default "mycontextprotocol-db-app" (get $postgres "appSecretName") | quote }}
+                    key: password
+              - name: LLAMAINDEX_POSTGRES_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ default "mycontextprotocol-db-app" (get $postgres "appSecretName") | quote }}
+                    key: password
+              - name: DRAGONFLY_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: dragonfly-password
+                    key: password
+            resources:
+              requests:
+                cpu: {{ .Values.resources.requests.cpu | quote }}
+                memory: {{ .Values.resources.requests.memory | quote }}
+              limits:
+                cpu: {{ .Values.resources.limits.cpu | quote }}
+                memory: {{ .Values.resources.limits.memory | quote }}
   
   triggers:
   - type: redis
     metadata:
       addressFromEnv: DRAGONFLY_HOST
       passwordFromEnv: DRAGONFLY_PASSWORD
-      listName: {{ .Values.config.dragonfly.queueName }}
+      listName: {{ default "mcp_ingest" (get (default (dict) (get (default (dict) .Values.config) "dragonfly")) "queueName") }}
       listLength: "1"

@@ -1,18 +1,24 @@
+{{- $config := default (dict) .Values.config -}}
+{{- $app := default (dict) (get $config "app") -}}
+{{- $mem0 := default (dict) (get $config "mem0") -}}
+{{- $llama := default (dict) (get $config "llamaindex") -}}
+{{- $dragonfly := default (dict) (get $config "dragonfly") -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: gateway-config
-  namespace: mycontextprotocol
+  namespace: {{ .Release.Namespace }}
 data:
-  MEM0_POSTGRES_HOST: {{ .Values.config.mem0.postgresHost | quote }}
-  MEM0_POSTGRES_PORT: {{ .Values.config.mem0.postgresPort | quote }}
-  MEM0_POSTGRES_DATABASE: {{ .Values.config.mem0.postgresDatabase | quote }}
-  MEM0_POSTGRES_USER: {{ .Values.config.mem0.postgresUser | quote }}
+  POSTGRES_DATABASE: {{ default "mycontextprotocol" (get $app "postgresDatabase") | quote }}
+  MEM0_POSTGRES_HOST: {{ default "mycontextprotocol-db-rw" (get $mem0 "postgresHost") | quote }}
+  MEM0_POSTGRES_PORT: {{ default "5432" (get $mem0 "postgresPort") | quote }}
+  MEM0_POSTGRES_DATABASE: {{ default "mem0" (get $mem0 "postgresDatabase") | quote }}
+  MEM0_POSTGRES_USER: {{ default "app" (get $mem0 "postgresUser") | quote }}
   
-  LLAMAINDEX_POSTGRES_HOST: {{ .Values.config.llamaindex.postgresHost | quote }}
-  LLAMAINDEX_POSTGRES_PORT: {{ .Values.config.llamaindex.postgresPort | quote }}
-  LLAMAINDEX_POSTGRES_DATABASE: {{ .Values.config.llamaindex.postgresDatabase | quote }}
-  LLAMAINDEX_POSTGRES_USER: {{ .Values.config.llamaindex.postgresUser | quote }}
+  LLAMAINDEX_POSTGRES_HOST: {{ default "mycontextprotocol-db-rw" (get $llama "postgresHost") | quote }}
+  LLAMAINDEX_POSTGRES_PORT: {{ default "5432" (get $llama "postgresPort") | quote }}
+  LLAMAINDEX_POSTGRES_DATABASE: {{ default "llamaindex" (get $llama "postgresDatabase") | quote }}
+  LLAMAINDEX_POSTGRES_USER: {{ default "app" (get $llama "postgresUser") | quote }}
   
-  DRAGONFLY_HOST: {{ .Values.config.dragonfly.host | quote }}
-  DRAGONFLY_PORT: {{ .Values.config.dragonfly.port | quote }}
+  DRAGONFLY_HOST: {{ default "dragonfly" (get $dragonfly "host") | quote }}
+  DRAGONFLY_PORT: {{ default "6379" (get $dragonfly "port") | quote }}

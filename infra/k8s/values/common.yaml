@@ -2,15 +2,24 @@
 
 config:
   dragonfly:
-    host: dragonfly.queue.svc.cluster.local
+    host: dragonfly
     port: "6379"
+    queueName: mcp_ingest
+
+  postgres:
+    appSecretName: mycontextprotocol-db-app
+
+  app:
+    postgresDatabase: mycontextprotocol
+
+  mem0:
+    postgresHost: mycontextprotocol-db-rw
+    postgresPort: "5432"
+    postgresDatabase: mem0
+    postgresUser: app
 
   llamaindex:
-    postgresHost: postgresql-cluster-rw.database.svc.cluster.local
+    postgresHost: mycontextprotocol-db-rw
     postgresPort: "5432"
     postgresDatabase: llamaindex
     postgresUser: app
-
-secrets:
-  llamaindexPostgresPassword: "changeme"
-  llamaindexOpenaiApiKey: "sk-..."

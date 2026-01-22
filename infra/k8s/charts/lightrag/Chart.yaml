@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lightrag
+description: LightRAG thin wrapper chart
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: mcp-lib
+    version: 0.1.0
+    repository: file://../mcp-lib

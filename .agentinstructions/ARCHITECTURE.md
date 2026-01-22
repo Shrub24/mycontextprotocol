@@ -15,3 +15,5 @@ Use those documents for current system design, dependencies, and deployment stru
 - **State vs Tools pattern**: Mem0 state is injected automatically; LlamaIndex + LightRAG are explicit tools.
 - **Gateway + Worker**: FastAPI gateway handles API requests; async worker consumes Dragonfly queue and writes to memory stores.
 - **Infra-first deployment**: Kubernetes via Helmfile, with CNPG (Postgres), Dragonfly, KEDA, LightRAG, and app charts.
+- **Single-namespace app stack**: Default deployments run the data plane in `mycontextprotocol`, while operators stay in system namespaces.
+- **Secrets model**: CNPG generates the app DB secret (`<cluster>-app`) and external API keys are injected via SOPS + helm-secrets.

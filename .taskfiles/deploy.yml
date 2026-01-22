@@ -12,3 +12,27 @@ tasks:
     dir: infra/k8s
     cmds:
       - helmfile diff
+
+  secrets:edit:
+    desc: Edit encrypted external secrets
+    cmds:
+      - sops --config infra/k8s/.sops.yaml infra/k8s/secrets/common.yaml
+
+  secrets:show:
+    desc: Decrypt external secrets to stdout
+    cmds:
+      - sops --config infra/k8s/.sops.yaml -d infra/k8s/secrets/common.yaml
+
+  secrets:init:
+    desc: Initialize encrypted external secrets file
+    cmds:
+      - |
+        cat > infra/k8s/secrets/common.yaml <<'EOF'
+        externalSecrets:
+          create: true
+          data:
+            LLAMAINDEX_OPENAI_API_KEY: "replace-me"
+            LLM_BINDING_API_KEY: "replace-me"
+            EMBEDDING_BINDING_API_KEY: "replace-me"
+        EOF
+      - sops --config infra/k8s/.sops.yaml -e -i infra/k8s/secrets/common.yaml

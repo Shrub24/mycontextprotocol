@@ -69,3 +69,9 @@
 
 *Convention analysis: 2026-01-15*
 *Update when patterns change*
+
+## Infrastructure Conventions
+
+- Prefer latest Helm chart versions; do not pin unless explicitly directed
+- Keep operator releases in system namespaces
+- Run app/data plane in `mycontextprotocol` by default

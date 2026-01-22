@@ -34,22 +34,11 @@ resources:
     memory: 512Mi
     cpu: 1000m
 
-config:
-  mem0:
-    postgresHost: postgresql-cluster-rw.database.svc.cluster.local
-    postgresPort: "5432"
-    postgresDatabase: mem0
-    postgresUser: app
-  dragonfly:
-    host: dragonfly.queue.svc.cluster.local
-    port: "6379"
-  llamaindex:
-    postgresHost: postgresql-cluster-rw.database.svc.cluster.local
-    postgresPort: "5432"
-    postgresDatabase: llamaindex
-    postgresUser: app
+externalSecrets:
+  enabled: true
+  create: false
+  secretName: mycontextprotocol-external
+  existingSecretName: mycontextprotocol-external
+  data: {}
 
-secrets:
-  mem0PostgresPassword: "changeme-dev"
-  llamaindexPostgresPassword: "changeme-dev"
-  llamaindexOpenaiApiKey: "sk-dev-placeholder"
+config: {}

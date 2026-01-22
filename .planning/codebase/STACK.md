@@ -73,6 +73,14 @@
 - Kubernetes (k3s) via Helmfile (`infra/k8s/helmfile.yaml`)
 - Nix-built OCI images (`nix/images/gateway.nix`, `nix/images/worker.nix`)
 
+## Deployment Defaults
+
+- Operators in `cnpg-system`, `dragonfly-system`, `keda`
+- App/data plane in `mycontextprotocol`
+- CNPG cluster name: `mycontextprotocol-db`
+- CNPG generates app credentials (`<cluster>-app`)
+- External API keys managed with SOPS + helm-secrets
+
 ---
 
 *Stack analysis: 2026-01-15*

@@ -4,3 +4,8 @@ description: mycontextprotocol Gateway API
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
+
+dependencies:
+  - name: mcp-lib
+    version: 0.1.0
+    repository: file://../mcp-lib

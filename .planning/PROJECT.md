@@ -47,6 +47,9 @@ The system is split into gateway and worker layers with queue-driven ingestion (
 | Backend-only (no UI) | Memory is accessed via middleware/tools/hooks | — Pending |
 | Three-tier memory (Mem0/LlamaIndex/LightRAG) | Clear separation of state, semantic, and graph memory | — Pending |
 | Nix-based dev shell + uv toolchain | Modern, reproducible workflow | — Pending |
+| Single-namespace app stack (`mycontextprotocol`) | Simpler FOSS install and auto-wired secrets | — Pending |
+| CNPG-managed app secret (`<cluster>-app`) | Operator-owned credentials reduce secret plumbing | — Pending |
+| External secrets via SOPS + helm-secrets | Encrypted in git, injected at deploy time | — Pending |
 
 ---
 *Last updated: 2026-01-15 after initialization*

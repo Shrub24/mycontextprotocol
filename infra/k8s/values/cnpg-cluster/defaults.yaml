@@ -4,23 +4,16 @@ cluster:
 
   imageName: ghcr.io/shrub24/mycontextprotocol:postgres-age-latest
 
-  bootstrap:
-    initdb:
-      database: mycontextprotocol
-      owner: app
-      secret:
-        name: postgresql-credentials
-      postInitSQL:
-        - CREATE DATABASE mem0 OWNER app;
-        - CREATE DATABASE llamaindex OWNER app;
-        - CREATE DATABASE lightrag OWNER app;
-        - \connect mem0
-        - CREATE EXTENSION IF NOT EXISTS vector;
-        - \connect llamaindex
-        - CREATE EXTENSION IF NOT EXISTS vector;
-        - \connect lightrag
-        - CREATE EXTENSION IF NOT EXISTS vector;
-        - CREATE EXTENSION IF NOT EXISTS age;
+  initdb:
+    database: mycontextprotocol
+    owner: app
+    postInitTemplateSQL:
+      - CREATE EXTENSION IF NOT EXISTS vector;
+      - CREATE EXTENSION IF NOT EXISTS age;
+    postInitApplicationSQL:
+      - CREATE DATABASE mem0 OWNER app;
+      - CREATE DATABASE llamaindex OWNER app;
+      - CREATE DATABASE lightrag OWNER app;
 
   storage:
     size: 10Gi

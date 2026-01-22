@@ -3,6 +3,9 @@ replicaCount: 1
 image:
   repository: ghcr.io/hkuds/lightrag
 
+service:
+  port: 9621
+
 updateStrategy:
   type: Recreate
 
@@ -22,33 +25,47 @@ persistence:
     size: 10Gi
 
 envFrom:
-  configmaps: []
-  secrets:
-    - name: lightrag-secrets
+  - secretRef:
+      name: lightrag-secrets
 
 env:
-  HOST: 0.0.0.0
-  PORT: 9621
-  WEBUI_TITLE: mycontextprotocol Graph RAG
-  WEBUI_DESCRIPTION: LightRAG Knowledge Graph with PostgreSQL+AGE
+  - name: HOST
+    value: 0.0.0.0
+  - name: PORT
+    value: "9621"
+  - name: WEBUI_TITLE
+    value: mycontextprotocol Graph RAG
+  - name: WEBUI_DESCRIPTION
+    value: LightRAG Knowledge Graph with PostgreSQL+AGE
+  - name: LLM_BINDING
+    value: openai
+  - name: LLM_MODEL
+    value: gpt-4o-mini
+  - name: EMBEDDING_BINDING
+    value: openai
+  - name: EMBEDDING_MODEL
+    value: text-embedding-3-small
+  - name: EMBEDDING_DIM
+    value: "1536"
+  - name: LIGHTRAG_KV_STORAGE
+    value: PGKVStorage
+  - name: LIGHTRAG_VECTOR_STORAGE
+    value: PGVectorStorage
+  - name: LIGHTRAG_GRAPH_STORAGE
+    value: PGGraphStorage
+  - name: LIGHTRAG_DOC_STATUS_STORAGE
+    value: PGDocStatusStorage
+  - name: POSTGRES_HOST
+    value: mycontextprotocol-db-rw
+  - name: POSTGRES_PORT
+    value: "5432"
+  - name: POSTGRES_USER
+    value: app
+  - name: POSTGRES_DATABASE
+    value: lightrag
+  - name: POSTGRES_WORKSPACE
+    value: default
 
-  LLM_BINDING: openai
-  LLM_MODEL: gpt-4o-mini
-  # TODO: LLM_BINDING_API_KEY must be set via lightrag-secrets
-
-  EMBEDDING_BINDING: openai
-  EMBEDDING_MODEL: text-embedding-3-small
-  EMBEDDING_DIM: 1536
-  # TODO: EMBEDDING_BINDING_API_KEY must be set via lightrag-secrets
-
-  LIGHTRAG_KV_STORAGE: PGKVStorage
-  LIGHTRAG_VECTOR_STORAGE: PGVectorStorage
-  LIGHTRAG_GRAPH_STORAGE: PGGraphStorage
-  LIGHTRAG_DOC_STATUS_STORAGE: PGDocStatusStorage
-
-  POSTGRES_HOST: postgresql-cluster-rw.database.svc.cluster.local
-  POSTGRES_PORT: "5432"
-  POSTGRES_USER: app
-  POSTGRES_DATABASE: lightrag
-  POSTGRES_WORKSPACE: default
-  # TODO: POSTGRES_PASSWORD must be set via lightrag-secrets
+postgres:
+  secretName: mycontextprotocol-db-app
+  secretKey: password

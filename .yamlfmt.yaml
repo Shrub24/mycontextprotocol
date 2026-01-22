@@ -16,3 +16,6 @@ exclude:
   - "alembic/**/*.yaml"
   - "infra/k8s/charts/worker/templates/*.yaml"
   - "infra/k8s/charts/gateway/templates/*.yaml"
+  - "infra/k8s/charts/lightrag/templates/*.yaml"
+  - "infra/k8s/charts/dragonfly-secrets/templates/*.yaml"
+  - "infra/k8s/charts/external-secrets/templates/*.yaml"

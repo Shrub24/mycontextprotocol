@@ -1,0 +1,5 @@
+apiVersion: v2
+name: mcp-lib
+description: Shared Helm helpers for mycontextprotocol charts
+type: library
+version: 0.1.0

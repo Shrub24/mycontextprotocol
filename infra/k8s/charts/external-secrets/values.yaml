@@ -1,0 +1,6 @@
+externalSecrets:
+  enabled: true
+  create: true
+  secretName: mycontextprotocol-external
+  existingSecretName: ""
+  data: {}

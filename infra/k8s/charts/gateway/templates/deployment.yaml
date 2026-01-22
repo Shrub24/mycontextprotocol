@@ -1,8 +1,10 @@
+{{- $config := default (dict) .Values.config -}}
+{{- $postgres := default (dict) (get $config "postgres") -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gateway
-  namespace: mycontextprotocol
+  namespace: {{ .Release.Namespace }}
   labels:
     app: gateway
 spec:
@@ -34,8 +36,23 @@ spec:
           envFrom:
             - configMapRef:
                 name: gateway-config
-            - secretRef:
-                name: gateway-secrets
+            {{- include "mcp-lib.externalSecrets.envFrom" . | nindent 12 }}
+          env:
+            - name: MEM0_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "mycontextprotocol-db-app" (get $postgres "appSecretName") | quote }}
+                  key: password
+            - name: LLAMAINDEX_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "mycontextprotocol-db-app" (get $postgres "appSecretName") | quote }}
+                  key: password
+            - name: DRAGONFLY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dragonfly-password
+                  key: password
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:

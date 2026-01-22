@@ -8,6 +8,17 @@ This document captures agent-focused development guidance. Project planning and 
 - Active execution plan: `.planning/PLAN.md`
 - Codebase map (architecture/structure/testing/integrations): `.planning/codebase/*.md`
 
+## Deployment Defaults
+
+- App/data plane runs in `mycontextprotocol` namespace by default
+- Operators stay in system namespaces (`cnpg-system`, `dragonfly-system`, `keda`)
+- CNPG generates the app DB secret (`<cluster>-app`); external keys use SOPS + helm-secrets
+
+## Versioning Policy
+
+- Do not pin Helm chart versions unless explicitly directed and confirmed
+- Prefer latest chart versions and let Helm resolve current releases
+
 ## Core Principles
 
 1. **Follow the plan** — execute tasks from `.planning/PLAN.md`.

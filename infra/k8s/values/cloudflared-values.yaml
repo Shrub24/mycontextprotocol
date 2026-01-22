@@ -12,8 +12,6 @@ cloudflare:
   # secret: "your-tunnel-secret"
 
   ingress:
-    - hostname: "openfaas.yourdomain.com"
-      service: http://gateway.openfaas.svc.cluster.local:8080
     - hostname: "mem0.yourdomain.com"
       service: http://mem0.mem0.svc.cluster.local:8080
     - service: http_status:404

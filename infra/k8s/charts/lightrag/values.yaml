@@ -1,0 +1,75 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/hkuds/lightrag
+  pullPolicy: IfNotPresent
+
+service:
+  port: 9621
+
+updateStrategy:
+  type: Recreate
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+persistence:
+  enabled: true
+  ragStorage:
+    size: 20Gi
+  inputs:
+    size: 10Gi
+
+externalSecrets:
+  enabled: true
+  create: false
+  secretName: mycontextprotocol-external
+  existingSecretName: mycontextprotocol-external
+  data: {}
+
+env:
+  - name: HOST
+    value: 0.0.0.0
+  - name: PORT
+    value: "9621"
+  - name: WEBUI_TITLE
+    value: mycontextprotocol Graph RAG
+  - name: WEBUI_DESCRIPTION
+    value: LightRAG Knowledge Graph with PostgreSQL+AGE
+  - name: LLM_BINDING
+    value: openai
+  - name: LLM_MODEL
+    value: gpt-4o-mini
+  - name: EMBEDDING_BINDING
+    value: openai
+  - name: EMBEDDING_MODEL
+    value: text-embedding-3-small
+  - name: EMBEDDING_DIM
+    value: "1536"
+  - name: LIGHTRAG_KV_STORAGE
+    value: PGKVStorage
+  - name: LIGHTRAG_VECTOR_STORAGE
+    value: PGVectorStorage
+  - name: LIGHTRAG_GRAPH_STORAGE
+    value: PGGraphStorage
+  - name: LIGHTRAG_DOC_STATUS_STORAGE
+    value: PGDocStatusStorage
+  - name: POSTGRES_HOST
+    value: mycontextprotocol-db-rw
+  - name: POSTGRES_PORT
+    value: "5432"
+  - name: POSTGRES_USER
+    value: app
+  - name: POSTGRES_DATABASE
+    value: lightrag
+  - name: POSTGRES_WORKSPACE
+    value: default
+
+postgres:
+  secretName: mycontextprotocol-db-app
+  secretKey: password

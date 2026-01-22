@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-15)
 
 ## Current Position
 
-Phase: 1 of 6 (Tooling hygiene)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-21 — Simplified Cachix auth setup
+Phase: 2 of 6 (Memory store initialization)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-21 — Align single-namespace stack + operator-managed secrets
 
-Progress: ██░░░░░░░░ 19%
+Progress: ███░░░░░░░ 25%
 
 ## Performance Metrics
 
@@ -40,11 +40,9 @@ Progress: ██░░░░░░░░ 19%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Adopt nix2container for OCI images with multi-layer caching
-- Use Lix + Cachix in CI with GH secret token (push-only)
-- Configure Cachix pull-only before Nix builds
-- DRY CI Nix setup into a composite action
-- Pin Lix installer action to a commit
+- Adopt single-namespace app stack (`mycontextprotocol`) with operators in system namespaces
+- Use CNPG-generated app credentials (`<cluster>-app`) for internal Postgres access
+- Keep external API keys managed by SOPS + helm-secrets
 
 ### Deferred Issues
 

@@ -33,6 +33,7 @@ mycontextprotocol/
 **infra/**
 - Purpose: Kubernetes manifests and Helm charts
 - Contains: `infra/k8s/helmfile.yaml`, charts, values, secrets
+- Deployment default: app/data plane in `mycontextprotocol`, operators in system namespaces
 
 **nix/**
 - Purpose: Nix image definitions

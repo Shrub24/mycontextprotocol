@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lightrag.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "lightrag.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "lightrag.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "lightrag.fullname" . }}
+    spec:
+      containers:
+        - name: lightrag
+          image: "{{ .Values.image.repository }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              name: http
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName | quote }}
+                  key: {{ .Values.postgres.secretKey | quote }}
+          envFrom:
+            {{- include "mcp-lib.externalSecrets.envFrom" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: rag-storage
+              mountPath: /app/rag
+            - name: inputs
+              mountPath: /app/inputs
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: rag-storage
+          persistentVolumeClaim:
+            claimName: {{ include "lightrag.fullname" . }}-rag-storage
+        - name: inputs
+          persistentVolumeClaim:
+            claimName: {{ include "lightrag.fullname" . }}-inputs
+        {{- end }}
+        - name: tmp
+          emptyDir: {}

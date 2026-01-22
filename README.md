@@ -54,7 +54,12 @@ task db:upgrade                              # Apply migrations
 
 # 6. Start local cluster (Phase 2+)
 k3d cluster create --config k3d/local.yaml
-helmfile sync
+
+# 7. Configure external secrets
+task deploy:secrets:edit
+
+# 8. Deploy the stack
+task deploy
 ```
 
 ### Development Commands
@@ -68,6 +73,7 @@ helmfile sync
 | `task db:upgrade` | Apply database migrations |
 | `cat .planning/STATE.md` | Review backlog and priorities |
 | `cat .planning/PLAN.md` | Review active work plan |
+| `task deploy:secrets:edit` | Edit encrypted external secrets |
 
 ## Project Structure
 
