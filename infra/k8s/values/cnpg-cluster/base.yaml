@@ -2,8 +2,6 @@ cluster:
   name: mycontextprotocol-db
   instances: 1
 
-  imageName: ghcr.io/shrub24/mycontextprotocol:17.7-mcp-0.0.1
-
   initdb:
     database: mycontextprotocol
     owner: app

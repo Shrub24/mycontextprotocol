@@ -7,7 +7,7 @@ config:
     queueName: mcp_ingest
 
   postgres:
-    appSecretName: mycontextprotocol-db-app
+    appSecretName: cnpg-cluster-app
 
   openai:
     apiBase: ""

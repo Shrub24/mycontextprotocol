@@ -1,5 +1,8 @@
 {{- $config := default (dict) .Values.config -}}
 {{- $postgres := default (dict) (get $config "postgres") -}}
+{{- $images := default (dict) .Values.images -}}
+{{- $gatewayImage := default (dict) (get $images "gateway") -}}
+{{- $image := default (dict) .Values.image -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,8 +31,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: gateway
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ default (get $image "repository") (get $gatewayImage "repository") }}:{{ default (get $image "tag") (get $gatewayImage "tag") }}"
+          imagePullPolicy: {{ default (get $image "pullPolicy") (get $gatewayImage "pullPolicy") }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: http

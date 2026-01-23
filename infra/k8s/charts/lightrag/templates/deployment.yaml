@@ -2,6 +2,7 @@
 {{- $lightrag := default (dict) (get $config "lightrag") -}}
 {{- $postgres := default (dict) (get $config "postgres") -}}
 {{- $openai := default (dict) (get $config "openai") -}}
+{{- $openaiBase := default (get $openai "apiBase") (get $lightrag "openaiApiBase") -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,8 +39,12 @@ spec:
               value: {{ default "lightrag" (get $lightrag "postgresDatabase") | quote }}
             - name: POSTGRES_WORKSPACE
               value: {{ default "default" (get $lightrag "postgresWorkspace") | quote }}
-            - name: OPENAI_API_BASE
-              value: {{ default (get $openai "apiBase") (get $lightrag "openaiApiBase") | quote }}
+            {{- if $openaiBase }}
+            - name: LLM_BINDING_HOST
+              value: {{ $openaiBase | quote }}
+            - name: EMBEDDING_BINDING_HOST
+              value: {{ $openaiBase | quote }}
+            {{- end }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:

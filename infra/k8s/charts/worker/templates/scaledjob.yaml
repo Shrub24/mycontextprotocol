@@ -1,5 +1,8 @@
 {{- $config := default (dict) .Values.config -}}
 {{- $postgres := default (dict) (get $config "postgres") -}}
+{{- $images := default (dict) .Values.images -}}
+{{- $workerImage := default (dict) (get $images "worker") -}}
+{{- $image := default (dict) .Values.image -}}
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
@@ -19,8 +22,8 @@ spec:
         restartPolicy: OnFailure
         containers:
           - name: worker
-            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            image: "{{ default (get $image "repository") (get $workerImage "repository") }}:{{ default (get $image "tag") (get $workerImage "tag") }}"
+            imagePullPolicy: {{ default (get $image "pullPolicy") (get $workerImage "pullPolicy") }}
             envFrom:
               - configMapRef:
                   name: worker-config

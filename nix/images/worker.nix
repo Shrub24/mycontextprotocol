@@ -1,8 +1,8 @@
 {
   pkgs,
-  pyproject-nix,
-  uv2nix,
-  pyproject-build-systems,
+  # pyproject-nix,
+  # uv2nix,
+  # pyproject-build-systems,
   workspace,
   pythonSet,
   nix2containerLib,
@@ -13,22 +13,26 @@ let
     # Ignore collision between llama-parse and llama-cloud-services packages
     venvIgnoreCollisions = [ "*" ];
   });
-  
+
   venv = pkgs.buildEnv {
     name = "mycontextprotocol-worker-env-wrapped";
     paths = [ baseVenv ];
     ignoreCollisions = true;  # llama-parse and llama-cloud-services both provide llama-parse binary
   };
 
+  runtimeDirs = pkgs.runCommand "worker-runtime-dirs" {} ''
+    mkdir -p $out/app $out/tmp
+  '';
+
   root = pkgs.buildEnv {
     name = "worker-root";
-    paths = [ venv ];
+    paths = [ venv runtimeDirs ];
     pathsToLink = [ "/venv" ];
   };
 in
   nix2containerLib.buildImage {
-    name = "ghcr.io/shrub24/mycontextprotocol";
-    tag = "worker-latest";
+    name = "ghcr.io/shrub24/mycontextprotocol-worker";
+    tag = "0.0.1";
 
     copyToRoot = root;
     maxLayers = 100;
@@ -49,9 +53,11 @@ in
       StopSignal = "SIGTERM";
     };
 
-    runAsRoot = ''
-      mkdir -p /app /tmp
-      chmod 1777 /tmp
-      chown -R 65534:65534 /app
-    '';
+    perms = [
+      {
+        path = "/tmp";
+        regex = ".*";
+        mode = "0777";
+      }
+    ];
   }

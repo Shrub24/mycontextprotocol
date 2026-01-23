@@ -14,28 +14,48 @@ tasks:
         if ! k3d cluster list | grep -q '^mcp-local'; then
           k3d cluster create mcp-local --config k3d/local.yaml --image rancher/k3s:v1.35.0-k3s1
         fi
+      - task deploy:images:import
       - |
         if [ ! -f infra/k8s/secrets/common.yaml ]; then
           task deploy:secrets:init
         fi
       - task deploy
 
+  redeploy:
+    desc: Recreate cluster, build images, and deploy
+    cmds:
+      - task deploy:clean
+      - task deploy:images
+      - task deploy:stack
+
   images:
     desc: Build and import local images
     vars:
-      POSTGRES_IMAGE: '{{.POSTGRES_IMAGE | default "mycontextprotocol-postgres-age:17.7-mcp-0.0.1"}}'
+      POSTGRES_IMAGE: '{{.POSTGRES_IMAGE | default "ghcr.io/shrub24/mycontextprotocol-postgres-age:17.7-mcp-0.0.1"}}'
+      GATEWAY_IMAGE: '{{.GATEWAY_IMAGE | default "ghcr.io/shrub24/mycontextprotocol-gateway:0.0.1"}}'
+      WORKER_IMAGE: '{{.WORKER_IMAGE | default "ghcr.io/shrub24/mycontextprotocol-worker:0.0.1"}}'
     cmds:
       - nix build .#packages.x86_64-linux.postgres-age-image
       - nix run .#packages.x86_64-linux.postgres-age-image.copyToDockerDaemon
-      - k3d image import {{.POSTGRES_IMAGE}} -c mcp-local
+      - nix build .#packages.x86_64-linux.gateway-image
+      - nix run .#packages.x86_64-linux.gateway-image.copyToDockerDaemon
+      - nix build .#packages.x86_64-linux.worker-image
+      - nix run .#packages.x86_64-linux.worker-image.copyToDockerDaemon
+
+  images:import:
+    desc: Import local images into k3d
+    vars:
+      POSTGRES_IMAGE: '{{.POSTGRES_IMAGE | default "ghcr.io/shrub24/mycontextprotocol-postgres-age:17.7-mcp-0.0.1"}}'
+      GATEWAY_IMAGE: '{{.GATEWAY_IMAGE | default "ghcr.io/shrub24/mycontextprotocol-gateway:0.0.1"}}'
+      WORKER_IMAGE: '{{.WORKER_IMAGE | default "ghcr.io/shrub24/mycontextprotocol-worker:0.0.1"}}'
+    cmds:
+      - k3d image import --cluster mcp-local {{.POSTGRES_IMAGE}} {{.GATEWAY_IMAGE}} {{.WORKER_IMAGE}}
 
   clean:
     desc: Delete local cluster and helm releases
     cmds:
       - |
-        if k3d cluster list | grep -q '^mcp-local'; then
-          k3d cluster delete mcp-local
-        fi
+        k3d cluster delete mcp-local
 
   down:
     desc: Uninstall stack from local cluster

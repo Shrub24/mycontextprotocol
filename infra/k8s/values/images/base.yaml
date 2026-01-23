@@ -1,0 +1,17 @@
+images:
+  gateway:
+    repository: ghcr.io/shrub24/mycontextprotocol-gateway
+    tag: 0.0.1
+    pullPolicy: IfNotPresent
+  worker:
+    repository: ghcr.io/shrub24/mycontextprotocol-worker
+    tag: 0.0.1
+    pullPolicy: IfNotPresent
+  lightrag:
+    repository: ghcr.io/hkuds/lightrag
+    tag: latest
+    pullPolicy: IfNotPresent
+
+cluster:
+  imageName: ghcr.io/shrub24/mycontextprotocol-postgres-age:17.7-mcp-0.0.1
+  imagePullPolicy: IfNotPresent

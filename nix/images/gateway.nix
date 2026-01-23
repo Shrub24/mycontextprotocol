@@ -1,30 +1,32 @@
 {
   pkgs,
-  pyproject-nix,
-  uv2nix,
-  pyproject-build-systems,
+  # pyproject-nix,
+  # uv2nix,
+  # pyproject-build-systems,
   workspace,
   pythonSet,
   nix2containerLib,
   ...
 }:
 let
-  baseVenv = pythonSet.mkVirtualEnv "mycontextprotocol-gateway-env" workspace.deps.default;
-  
   venv = (pythonSet.mkVirtualEnv "mycontextprotocol-gateway-env" workspace.deps.default).overrideAttrs (old: {
     # Ignore collision between llama-parse and llama-cloud-services packages
     venvIgnoreCollisions = [ "*" ];
   });
 
+  runtimeDirs = pkgs.runCommand "gateway-runtime-dirs" {} ''
+    mkdir -p $out/app $out/tmp
+  '';
+
   root = pkgs.buildEnv {
     name = "gateway-root";
-    paths = [ venv ];
+    paths = [ venv runtimeDirs ];
     pathsToLink = [ "/venv" ];
   };
 in
   nix2containerLib.buildImage {
-    name = "ghcr.io/shrub24/mycontextprotocol";
-    tag = "gateway-latest";
+    name = "ghcr.io/shrub24/mycontextprotocol-gateway";
+    tag = "0.0.1";
 
     copyToRoot = root;
     maxLayers = 100;
@@ -54,9 +56,12 @@ in
       };
     };
 
-    runAsRoot = ''
-      mkdir -p /app /tmp
-      chmod 1777 /tmp
-      chown -R 65534:65534 /app
-    '';
+    perms = [
+      {
+        path = "/tmp";
+        regex = ".*";
+        mode = "0777";
+      }
+    ];
+
   }

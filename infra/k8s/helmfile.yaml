@@ -27,6 +27,8 @@ releases:
     needs:
       - cnpg-system/cnpg-operator
     values:
+      - values/images/base.yaml
+      - values/images/{{ .Environment.Name }}.yaml
       - values/cnpg-cluster/base.yaml
       - values/cnpg-cluster/{{ .Environment.Name }}.yaml
 
@@ -64,6 +66,8 @@ releases:
       - mycontextprotocol/cnpg-cluster
       - mycontextprotocol/external-secrets
     values:
+      - values/images/base.yaml
+      - values/images/{{ .Environment.Name }}.yaml
       - values/common.yaml
       - values/lightrag/base.yaml
       - values/lightrag/{{ .Environment.Name }}.yaml
@@ -93,6 +97,8 @@ releases:
       - mycontextprotocol/dragonfly-secrets
       - mycontextprotocol/external-secrets
     values:
+      - values/images/base.yaml
+      - values/images/{{ .Environment.Name }}.yaml
       - values/common.yaml
       - values/gateway/{{ .Environment.Name }}.yaml
 
@@ -108,5 +114,7 @@ releases:
       - mycontextprotocol/external-secrets
       - keda/keda
     values:
+      - values/images/base.yaml
+      - values/images/{{ .Environment.Name }}.yaml
       - values/common.yaml
       - values/worker/{{ .Environment.Name }}.yaml
