@@ -36,3 +36,9 @@ tasks:
     desc: Run tests with debugging enabled
     cmds:
       - uv run pytest {{.TEST_DIR}} -v -s --pdb
+
+  stack:
+    desc: Deploy stack and run integration tests
+    cmds:
+      - task deploy:stack
+      - uv run pytest {{.TEST_DIR}} -v -m integration

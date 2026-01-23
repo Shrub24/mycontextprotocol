@@ -59,17 +59,5 @@ env:
     value: PGGraphStorage
   - name: LIGHTRAG_DOC_STATUS_STORAGE
     value: PGDocStatusStorage
-  - name: POSTGRES_HOST
-    value: mycontextprotocol-db-rw
-  - name: POSTGRES_PORT
-    value: "5432"
-  - name: POSTGRES_USER
-    value: app
-  - name: POSTGRES_DATABASE
-    value: lightrag
-  - name: POSTGRES_WORKSPACE
-    value: default
 
-postgres:
-  secretName: mycontextprotocol-db-app
-  secretKey: password
+config: {}

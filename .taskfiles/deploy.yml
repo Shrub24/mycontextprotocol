@@ -5,13 +5,40 @@ tasks:
     desc: Deploy services with helmfile
     dir: infra/k8s
     cmds:
-      - helmfile sync
+      - helmfile -e local sync
+
+  stack:
+    desc: Create local cluster and deploy stack
+    cmds:
+      - |
+        if ! k3d cluster list | grep -q '^mcp-local'; then
+          k3d cluster create mcp-local --config k3d/local.yaml --image rancher/k3s:v1.35.0-k3s1
+        fi
+      - |
+        if [ ! -f infra/k8s/secrets/common.yaml ]; then
+          task deploy:secrets:init
+        fi
+      - task deploy
+
+  clean:
+    desc: Delete local cluster and helm releases
+    cmds:
+      - |
+        if k3d cluster list | grep -q '^mcp-local'; then
+          k3d cluster delete mcp-local
+        fi
+
+  down:
+    desc: Uninstall stack from local cluster
+    dir: infra/k8s
+    cmds:
+      - helmfile -e local destroy
 
   diff:
     desc: Show what would change with helmfile
     dir: infra/k8s
     cmds:
-      - helmfile diff
+      - helmfile -e local diff
 
   secrets:edit:
     desc: Edit encrypted external secrets

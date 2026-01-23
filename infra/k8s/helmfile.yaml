@@ -23,21 +23,22 @@ releases:
     needs:
       - cnpg-system/cnpg-operator
     values:
-      - values/cnpg-cluster/defaults.yaml
-      - values/cnpg-cluster/{{ .Environment.Name}}.yaml
+      - values/cnpg-cluster/base.yaml
+      - values/cnpg-cluster/{{ .Environment.Name }}.yaml
 
   - name: dragonfly-operator
     namespace: dragonfly-system
     chart: oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
+    version: v1.3.1
 
   - name: dragonfly
     namespace: mycontextprotocol
     chart: oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly
+    version: v1.36.0
     needs:
       - dragonfly-system/dragonfly-operator
-      - mycontextprotocol/dragonfly-secrets
     values:
-      - values/dragonfly/defaults.yaml
+      - values/dragonfly/base.yaml
       - values/dragonfly/{{ .Environment.Name }}.yaml
 
   - name: keda
@@ -45,47 +46,38 @@ releases:
     chart: kedacore/keda
 
   - name: lightrag
-    namespace: mycontextprotocol
-    chart: ./charts/lightrag
+    namespace: lightrag
+    chart: /tmp/lightrag-repo/k8s-deploy/lightrag
     needs:
-      - mycontextprotocol/cnpg-cluster
-      - mycontextprotocol/external-secrets
+      - database/cnpg-cluster
     values:
-      - values/lightrag/defaults.yaml
+      - values/common.yaml
+      - values/lightrag/base.yaml
       - values/lightrag/{{ .Environment.Name }}.yaml
-
-  - name: dragonfly-secrets
-    namespace: mycontextprotocol
-    chart: ./charts/dragonfly-secrets
-
-  - name: external-secrets
-    namespace: mycontextprotocol
-    chart: ./charts/external-secrets
-    secrets:
-      - secrets/common.yaml
 
   - name: gateway
     namespace: mycontextprotocol
     chart: ./charts/gateway
     needs:
-      - mycontextprotocol/cnpg-cluster
-      - mycontextprotocol/dragonfly
-      - mycontextprotocol/dragonfly-secrets
-      - mycontextprotocol/external-secrets
+      - database/cnpg-cluster
+      - queue/dragonfly
     values:
       - values/common.yaml
       - values/gateway/{{ .Environment.Name }}.yaml
+    secrets:
+      - secrets/common.yaml
+      - secrets/gateway/{{ .Environment.Name }}.yaml
 
   - name: worker
     namespace: mycontextprotocol
     chart: ./charts/worker
     needs:
-      - mycontextprotocol/cnpg-cluster
-      - mycontextprotocol/dragonfly
-      - mycontextprotocol/dragonfly-secrets
-      - mycontextprotocol/external-secrets
-      - mycontextprotocol/gateway
+      - database/cnpg-cluster
+      - queue/dragonfly
       - keda/keda
     values:
       - values/common.yaml
       - values/worker/{{ .Environment.Name }}.yaml
+    secrets:
+      - secrets/common.yaml
+      - secrets/worker/{{ .Environment.Name }}.yaml

@@ -1,4 +1,4 @@
-# Common configuration shared between gateway and worker charts
+# Common configuration shared across app workloads
 
 config:
   dragonfly:
@@ -23,3 +23,10 @@ config:
     postgresPort: "5432"
     postgresDatabase: llamaindex
     postgresUser: app
+
+  lightrag:
+    postgresHost: mycontextprotocol-db-rw
+    postgresPort: "5432"
+    postgresDatabase: lightrag
+    postgresUser: app
+    postgresWorkspace: default

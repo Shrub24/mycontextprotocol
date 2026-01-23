@@ -1,3 +1,6 @@
+{{- $config := default (dict) .Values.config -}}
+{{- $lightrag := default (dict) (get $config "lightrag") -}}
+{{- $postgres := default (dict) (get $config "postgres") -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,11 +27,21 @@ spec:
               name: http
           env:
             {{- toYaml .Values.env | nindent 12 }}
+            - name: POSTGRES_HOST
+              value: {{ default "mycontextprotocol-db-rw" (get $lightrag "postgresHost") | quote }}
+            - name: POSTGRES_PORT
+              value: {{ default "5432" (get $lightrag "postgresPort") | quote }}
+            - name: POSTGRES_USER
+              value: {{ default "app" (get $lightrag "postgresUser") | quote }}
+            - name: POSTGRES_DATABASE
+              value: {{ default "lightrag" (get $lightrag "postgresDatabase") | quote }}
+            - name: POSTGRES_WORKSPACE
+              value: {{ default "default" (get $lightrag "postgresWorkspace") | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.postgres.secretName | quote }}
-                  key: {{ .Values.postgres.secretKey | quote }}
+                  name: {{ default "mycontextprotocol-db-app" (get $postgres "appSecretName") | quote }}
+                  key: password
           envFrom:
             {{- include "mcp-lib.externalSecrets.envFrom" . | nindent 12 }}
           resources:

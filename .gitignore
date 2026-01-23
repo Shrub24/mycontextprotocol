@@ -61,6 +61,10 @@ Thumbs.db
 dist/
 build/
 
+# Helm dependency artifacts
+infra/k8s/charts/**/Chart.lock
+infra/k8s/charts/**/charts/*.tgz
+
 # OpenCode session data (local AI assistant context)
 .opencode/
 .claude/

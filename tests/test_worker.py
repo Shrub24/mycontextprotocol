@@ -23,10 +23,12 @@ async def test_worker_connect():
     with (
         patch("mycontextprotocol.worker.redis") as mock_redis,
         patch("mycontextprotocol.worker.DocumentExtractor") as mock_extractor,
+        patch("mycontextprotocol.worker.Memory") as mock_memory,
         patch("llama_index.embeddings.ollama.OllamaEmbedding") as mock_ollama,
     ):
         mock_redis.from_url.return_value = AsyncMock()
         mock_extractor.return_value = Mock()
+        mock_memory.from_config.return_value = Mock()
         mock_ollama.return_value = Mock()  # Mock the embedding model
 
         worker = OmniWorker()
