@@ -17,7 +17,7 @@ class Mem0Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_database: str = "mem0"
     postgres_user: str = "app"
-    postgres_password: str
+    postgres_password: str = ""
 
     model_config = {"env_prefix": "MEM0_"}
 

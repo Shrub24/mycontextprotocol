@@ -1,3 +1,5 @@
+glob_matcher: doublestar
+
 pre-commit:
   parallel: true
   commands:
@@ -13,19 +15,30 @@ pre-commit:
 
     yaml:
       glob: "**/*.{yaml,yml}"
-      exclude: "(alembic/|infra/k8s/charts/.*/templates/)"
+      exclude:
+        - alembic/|infra/k8s/charts/**/templates/**
+        - infra/k8s/charts/**/charts/**
       stage_fixed: true
       run: |
-        if [ -z "{staged_files}" ]; then exit 0; fi
-        yamlfmt -conf .yamlfmt.yaml {staged_files}
-        yamllint -c .yamllint.yaml {staged_files}
+        set -- {staged_files}
+        if [ $# -eq 0 ]; then exit 0; fi
+        yamlfmt -conf .yamlfmt.yaml "$@"
+        yamllint -c .yamllint.yaml "$@"
 
     kube-linter:
       glob: "infra/k8s/**/*.yaml"
       run: |
-        if [ -z "{staged_files}" ]; then exit 0; fi
-        kube-linter lint {staged_files}
+        set -- {staged_files}
+        if [ $# -eq 0 ]; then exit 0; fi
+        kube-linter lint "$@"
 
     helm-lint:
       glob: "infra/k8s/charts/**/*.yaml"
-      run: cd infra/k8s && helm lint charts/*
+      run: |-
+        cd infra/k8s
+        for chart in charts/*; do
+          if [ -f "$chart/Chart.yaml" ]; then
+            helm dependency update "$chart"
+          fi
+        done
+        helm lint charts/*

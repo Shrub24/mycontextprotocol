@@ -1,6 +1,0 @@
-dependencies:
-- name: mcp-lib
-  repository: file://../mcp-lib
-  version: 0.1.0
-digest: sha256:a71d4c85e85e2d835972a2fc73f615763e60bc39751906527b538b23b218647b
-generated: "2026-01-22T12:54:52.048182347+11:00"

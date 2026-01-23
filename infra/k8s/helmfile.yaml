@@ -49,7 +49,7 @@ releases:
     namespace: lightrag
     chart: /tmp/lightrag-repo/k8s-deploy/lightrag
     needs:
-      - database/cnpg-cluster
+      - mycontextprotocol/cnpg-cluster
     values:
       - values/common.yaml
       - values/lightrag/base.yaml
@@ -59,8 +59,8 @@ releases:
     namespace: mycontextprotocol
     chart: ./charts/gateway
     needs:
-      - database/cnpg-cluster
-      - queue/dragonfly
+      - mycontextprotocol/cnpg-cluster
+      - mycontextprotocol/dragonfly
     values:
       - values/common.yaml
       - values/gateway/{{ .Environment.Name }}.yaml
@@ -72,8 +72,8 @@ releases:
     namespace: mycontextprotocol
     chart: ./charts/worker
     needs:
-      - database/cnpg-cluster
-      - queue/dragonfly
+      - mycontextprotocol/cnpg-cluster
+      - mycontextprotocol/dragonfly
       - keda/keda
     values:
       - values/common.yaml
