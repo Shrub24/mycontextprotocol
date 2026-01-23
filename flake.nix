@@ -48,7 +48,7 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          nix2containerLib = nix2container.lib.${system} or nix2container.lib;
+          nix2containerLib = nix2container.packages.${system}.nix2container;
           workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
           
           # Create overlay from workspace dependencies

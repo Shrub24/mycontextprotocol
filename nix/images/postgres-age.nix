@@ -13,8 +13,8 @@ let
   };
 in
 nix2containerLib.buildImage {
-  name = "ghcr.io/shrub24/mycontextprotocol";
-  tag = "postgres-age-latest";
+  name = "ghcr.io/shrub24/mycontextprotocol-postgres-age";
+  tag = "17.7-mcp-0.0.1";
 
   copyToRoot = root;
   maxLayers = 100;

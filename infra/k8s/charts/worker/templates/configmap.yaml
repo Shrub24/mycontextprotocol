@@ -12,6 +12,8 @@ data:
   DRAGONFLY_PORT: {{ default "6379" (get $dragonfly "port") | quote }}
   QUEUE_NAME: {{ default "mcp_ingest" (get $dragonfly "queueName") | quote }}
 
+  OPENAI_API_BASE: {{ default "" (get (default (dict) (get $config "openai")) "apiBase") | quote }}
+
   MEM0_POSTGRES_HOST: {{ default "mycontextprotocol-db-rw" (get $mem0 "postgresHost") | quote }}
   MEM0_POSTGRES_PORT: {{ default "5432" (get $mem0 "postgresPort") | quote }}
   MEM0_POSTGRES_DATABASE: {{ default "mem0" (get $mem0 "postgresDatabase") | quote }}

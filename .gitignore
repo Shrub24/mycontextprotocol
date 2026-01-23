@@ -42,7 +42,7 @@ kubeconfig
 .env
 .env.local
 credentials.json
-secrets/
+/secrets/
 *.key
 
 # IDE

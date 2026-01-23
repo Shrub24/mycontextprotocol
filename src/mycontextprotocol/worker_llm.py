@@ -40,9 +40,11 @@ class CompletionCreate(Protocol):
 class DocumentExtractor:
     def __init__(self, settings: Settings):
         self.settings = settings
+        base_url = settings.openai_api_base or f"{settings.ollama_base_url}/v1"
+        api_key = settings.openai_api_key or "ollama"
         client = AsyncOpenAI(
-            base_url=f"{settings.ollama_base_url}/v1",
-            api_key="ollama",
+            base_url=base_url,
+            api_key=api_key,
         )
         self.instructor_client = instructor.patch(client)
 

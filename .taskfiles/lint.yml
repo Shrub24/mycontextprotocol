@@ -36,7 +36,12 @@ tasks:
 
   kube:
     cmds:
-      - kube-linter lint infra/k8s/
+      - |-
+        tmpfile=$(mktemp)
+        cd infra/k8s
+        helmfile -e local -l tier=app template > "$tmpfile"
+        kube-linter lint "$tmpfile"
+        rm -f "$tmpfile"
 
   yaml:
     cmds:
@@ -46,18 +51,13 @@ tasks:
     dir: infra/k8s
     cmds:
       - |-
-        helm template gateway charts/gateway | \
+        tmpfile=$(mktemp)
+        helmfile -e local -l tier=app template > "$tmpfile"
+        schema_url='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{"{{"}}.Group{{"}}"}}/{{"{{"}}.ResourceKind{{"}}"}}_{{"{{"}}.ResourceAPIVersion{{"}}"}}.json'
         kubeconform \
           -summary \
           -skip ScaledJob \
           -schema-location default \
-          -schema-location \
-          'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-      - |-
-        helm template worker charts/worker | \
-        kubeconform \
-          -summary \
-          -skip ScaledJob \
-          -schema-location default \
-          -schema-location \
-          'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          -schema-location "$schema_url" \
+          "$tmpfile"
+        rm -f "$tmpfile"

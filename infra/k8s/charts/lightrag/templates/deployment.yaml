@@ -1,6 +1,7 @@
 {{- $config := default (dict) .Values.config -}}
 {{- $lightrag := default (dict) (get $config "lightrag") -}}
 {{- $postgres := default (dict) (get $config "postgres") -}}
+{{- $openai := default (dict) (get $config "openai") -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +21,7 @@ spec:
     spec:
       containers:
         - name: lightrag
-          image: "{{ .Values.image.repository }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.port }}
@@ -37,6 +38,8 @@ spec:
               value: {{ default "lightrag" (get $lightrag "postgresDatabase") | quote }}
             - name: POSTGRES_WORKSPACE
               value: {{ default "default" (get $lightrag "postgresWorkspace") | quote }}
+            - name: OPENAI_API_BASE
+              value: {{ default (get $openai "apiBase") (get $lightrag "openaiApiBase") | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:

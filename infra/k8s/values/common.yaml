@@ -9,6 +9,9 @@ config:
   postgres:
     appSecretName: mycontextprotocol-db-app
 
+  openai:
+    apiBase: ""
+
   app:
     postgresDatabase: mycontextprotocol
 
@@ -30,3 +33,4 @@ config:
     postgresDatabase: lightrag
     postgresUser: app
     postgresWorkspace: default
+    openaiApiBase: ""

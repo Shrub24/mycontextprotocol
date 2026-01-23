@@ -20,6 +20,15 @@ tasks:
         fi
       - task deploy
 
+  images:
+    desc: Build and import local images
+    vars:
+      POSTGRES_IMAGE: '{{.POSTGRES_IMAGE | default "mycontextprotocol-postgres-age:17.7-mcp-0.0.1"}}'
+    cmds:
+      - nix build .#packages.x86_64-linux.postgres-age-image
+      - nix run .#packages.x86_64-linux.postgres-age-image.copyToDockerDaemon
+      - k3d image import {{.POSTGRES_IMAGE}} -c mcp-local
+
   clean:
     desc: Delete local cluster and helm releases
     cmds:
@@ -53,13 +62,5 @@ tasks:
   secrets:init:
     desc: Initialize encrypted external secrets file
     cmds:
-      - |
-        cat > infra/k8s/secrets/common.yaml <<'EOF'
-        externalSecrets:
-          create: true
-          data:
-            LLAMAINDEX_OPENAI_API_KEY: "replace-me"
-            LLM_BINDING_API_KEY: "replace-me"
-            EMBEDDING_BINDING_API_KEY: "replace-me"
-        EOF
+      - cp infra/k8s/secrets/templates/external-secrets.example.yaml infra/k8s/secrets/common.yaml
       - sops --config infra/k8s/.sops.yaml -e -i infra/k8s/secrets/common.yaml

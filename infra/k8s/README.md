@@ -11,11 +11,18 @@ This directory deploys the full stack into a single app namespace (`mycontextpro
 ## Secrets Setup
 
 External API keys are stored in `infra/k8s/secrets/common.yaml` and rendered into a shared Secret named `mycontextprotocol-external`.
+The template lives at `infra/k8s/secrets/templates/external-secrets.example.yaml`.
 
 Required keys:
 - `LLAMAINDEX_OPENAI_API_KEY`
 - `LLM_BINDING_API_KEY`
 - `EMBEDDING_BINDING_API_KEY`
+
+Initialize (first time):
+
+```bash
+task deploy:secrets:init
+```
 
 Edit secrets:
 
