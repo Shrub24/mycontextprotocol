@@ -13,7 +13,7 @@ jobs:
     environment: ci
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Nix + Cachix
         uses: ./.github/actions/setup-nix
@@ -30,7 +30,7 @@ jobs:
     environment: ci
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Nix + Cachix
         uses: ./.github/actions/setup-nix
